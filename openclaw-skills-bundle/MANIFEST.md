@@ -28,3 +28,8 @@
 Exported from:
 - `/home/park/openclaw/.openclaw/skills`
 - `/home/park/openclaw/.openclaw/skills-on-demand`
+
+## Export counts
+
+- Active: 61
+- On-demand: 8
