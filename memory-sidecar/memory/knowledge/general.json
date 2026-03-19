@@ -1,0 +1,53 @@
+{
+  "items": [
+    {
+      "content": "Windows startup behavior should be investigated through Startup sources, Run keys, and scheduled tasks before changing scripts.",
+      "tags": [
+        "windows-startup",
+        "troubleshooting",
+        "boundary"
+      ],
+      "importance": 0.95,
+      "created_at": "2026-03-18T02:41:12+00:00",
+      "last_accessed_step": 57,
+      "access_count": 1,
+      "tokens": [
+        "windows",
+        "startup",
+        "sources",
+        "run",
+        "keys",
+        "scheduled",
+        "tasks",
+        "scripts"
+      ],
+      "key": "windows-startup-sources-before-changing-scripts"
+    }
+  ],
+  "index": {
+    "windows": [
+      0
+    ],
+    "startup": [
+      0
+    ],
+    "sources": [
+      0
+    ],
+    "run": [
+      0
+    ],
+    "keys": [
+      0
+    ],
+    "scheduled": [
+      0
+    ],
+    "tasks": [
+      0
+    ],
+    "scripts": [
+      0
+    ]
+  }
+}

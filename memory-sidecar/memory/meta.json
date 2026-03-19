@@ -1,0 +1,45 @@
+{
+  "rules": [
+    {
+      "rule": "Only store high-value reusable operational knowledge",
+      "confidence": 1.0,
+      "last_validated_step": 57
+    },
+    {
+      "rule": "Do not configure Windows auto-start without explicit user approval",
+      "confidence": 1.0,
+      "last_validated_step": 57
+    },
+    {
+      "rule": "Treat Windows paths as accessible through WSL path mapping",
+      "confidence": 1.0,
+      "last_validated_step": 57
+    },
+    {
+      "rule": "Treat D:\\openclaw as the canonical OpenClaw home and workspace root",
+      "confidence": 1.0,
+      "last_validated_step": 57
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Check known startup sources before editing launch scripts again",
+      "confidence": 1.0,
+      "last_validated_step": 57
+    },
+    {
+      "pattern": "Use fixed troubleshooting order for Xiaohongshu MCP",
+      "confidence": 1.0,
+      "last_validated_step": 57
+    }
+  ],
+  "constraints": [
+    "Keep memory small",
+    "Keep retrieval fast",
+    "Keep disk usage low"
+  ],
+  "evaluation_rules": [
+    "If startup-related noise returns, preserve only the conclusion and not the full transcript",
+    "If a workflow is fixed and repeatable, prefer strategy or meta over summary sprawl"
+  ]
+}

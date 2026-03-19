@@ -1,0 +1,83 @@
+{
+  "items": [
+    {
+      "content": "The socket mouse bridge host is 172.18.160.1 and the bridge must run in the user desktop session, not Session 0.",
+      "tags": [
+        "mouse-bridge",
+        "socket",
+        "windows-gui"
+      ],
+      "importance": 1.0,
+      "created_at": "2026-03-18T02:41:12+00:00",
+      "last_accessed_step": 75,
+      "access_count": 51,
+      "tokens": [
+        "socket",
+        "mouse",
+        "bridge",
+        "host",
+        "172",
+        "desktop",
+        "session",
+        "session0"
+      ],
+      "key": "socket-mouse-bridge-host"
+    },
+    {
+      "content": "Xiaohongshu MCP troubleshooting order: check mcporter status, ensure Docker Desktop is running, start the container, then verify MCP registration before deeper debugging.",
+      "tags": [
+        "xiaohongshu",
+        "mcp",
+        "docker",
+        "runbook"
+      ],
+      "importance": 1.0,
+      "created_at": "2026-03-18T02:41:12+00:00",
+      "last_accessed_step": 75,
+      "access_count": 51,
+      "tokens": [
+        "xiaohongshu",
+        "mcp",
+        "troubleshooting",
+        "docker",
+        "mcporter",
+        "container",
+        "registration",
+        "runbook"
+      ],
+      "key": "xiaohongshu-mcp-troubleshooting-order"
+    }
+  ],
+  "index": {
+    "socket": [
+      0
+    ],
+    "mouse": [
+      0
+    ],
+    "bridge": [
+      0
+    ],
+    "host": [
+      0
+    ],
+    "172": [
+      0
+    ],
+    "xiaohongshu": [
+      1
+    ],
+    "mcp": [
+      1
+    ],
+    "troubleshooting": [
+      1
+    ],
+    "docker": [
+      1
+    ],
+    "mcporter": [
+      1
+    ]
+  }
+}

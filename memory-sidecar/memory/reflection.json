@@ -1,0 +1,8 @@
+{
+  "insights": [
+    "Treat selfstart as manual-only unless the user explicitly asks for Windows auto-start.",
+    "When startup behavior looks wrong, inspect system startup sources before editing helper scripts again.",
+    "Use a fixed troubleshooting order for Xiaohongshu MCP instead of adding extra background checks.",
+    "Simplify sooner after a failure instead of repeating the same approach."
+  ]
+}

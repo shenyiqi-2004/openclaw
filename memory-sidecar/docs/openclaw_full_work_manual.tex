@@ -1,0 +1,573 @@
+\documentclass[11pt,a4paper,oneside,openany]{ctexbook}
+\usepackage[a4paper,margin=2.0cm]{geometry}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{titlesec}
+\let\cleardoublepage\clearpage
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  urlcolor=blue!50!black,
+  pdftitle={OpenClaw Memory Sidecar Manual},
+  pdfauthor={OpenAI Codex}
+}
+\setlist[itemize]{nosep,leftmargin=1.8em}
+\setlist[enumerate]{nosep,leftmargin=1.8em}
+\lstdefinestyle{clawcode}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=single,
+  rulecolor=\color{black!20},
+  numbers=left,
+  numberstyle=\tiny\color{black!45},
+  stepnumber=1,
+  numbersep=8pt,
+  showstringspaces=false,
+  tabsize=2
+}
+
+\titleformat{\chapter}{\Huge\bfseries}{第\thechapter 章}{1em}{}
+\title{OpenClaw Memory Sidecar 工作手册\\OpenClaw 记忆侧车系统：运作、维修、代码与状态全说明}
+\author{当前集成版}
+\date{2026-03-18}
+
+\newcommand{\codechapter}[3]{
+\section{#1}
+\subsection*{作用说明}
+#2
+\subsection*{完整内容}
+\lstinputlisting[style=clawcode]{#3}
+}
+
+\begin{document}
+\frontmatter
+\maketitle
+\tableofcontents
+
+\cleardoublepage
+\chapter*{快速索引}
+\addcontentsline{toc}{chapter}{快速索引}
+
+\section*{先看哪里}
+\begin{itemize}
+  \item 想快速理解整套系统：先看“系统全貌”。
+  \item 想看目录和文件分布：看“结构总表”。
+  \item 想知道每个关键文件干什么：看“文件职责总览”。
+  \item 想逐个读懂当前系统：看“逐文件解释”。
+  \item 想排障、维修、回退：看“如何维修”。
+  \item 想直接查完整代码和当前状态：看“附录 A / 附录 B”。
+\end{itemize}
+
+\section*{最关键路径}
+\begin{longtable}{p{0.30\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{主题} & \textbf{去哪里看} \\
+\midrule
+\endhead
+系统入口与家目录 & \texttt{selfstart/Start-OpenClaw-WSL-Interactive.cmd}，以及“系统全貌”中的运行链说明 \\
+Windows 侧 OpenClaw Memory Sidecar & \texttt{main.py}、\texttt{core/*}、\texttt{memory/*}，以及“逐文件解释” \\
+WSL 侧真实 OpenClaw 入口 & \texttt{manual\_sources/wsl/bin/openclaw}、\texttt{src/cli/gateway-cli/run.ts} \\
+真实 chat 主路径 & \texttt{src/gateway/server-methods/chat.ts} \\
+真实 agent 主路径 & \texttt{src/gateway/server-methods/agent.ts}、\texttt{src/auto-reply/reply/agent-runner.ts} \\
+WSL 到 Windows 的 bridge & \texttt{src/infra/external-memory-kernel.ts} \\
+当前运行状态 & \texttt{memory/working.json}、\texttt{memory/runtime.json}、\texttt{memory/selfcheck.json} \\
+长期摘要与知识 & \texttt{memory/summary.json}、\texttt{memory/meta.json}、\texttt{memory/knowledge/*.json} \\
+如何确认系统还活着 & 看“如何维修”中的检查顺序 \\
+\bottomrule
+\end{longtable}
+
+\section*{维修顺序建议}
+\begin{enumerate}
+  \item 先确认 \texttt{D:\textbackslash openclaw} 仍是 canonical home。
+  \item 再确认 WSL 启动链仍导出 \texttt{OPENCLAW\_EXTERNAL\_MEMORY\_ROOT=/mnt/d/openclaw}。
+  \item 再确认真实请求会推进 \texttt{memory/working.json} 和 \texttt{memory/runtime.json}。
+  \item 最后才去看附录中的完整代码和配置细节。
+\end{enumerate}
+
+\chapter{阅读说明}
+
+这份手册的目标不是做一个简短摘要，而是把当前 OpenClaw 集成版的\textbf{结构、运行方式、维修入口、关键文件解释以及完整源码/内容快照}整理成一本能交接、能排障、能维护的工作手册。
+
+\section{收录范围}
+
+本手册收录两部分：
+
+\begin{itemize}
+  \item Windows 侧 \texttt{D:\textbackslash openclaw} 中与当前记忆内核直接相关的全部关键文件
+  \item WSL 侧 \texttt{/home/park/openclaw} 中与真实 OpenClaw 运行时集成直接相关的全部关键文件
+\end{itemize}
+
+为了保持这份手册可读、可修、可打印，以下内容\textbf{不作为源码正文收录对象}：
+
+\begin{itemize}
+  \item \texttt{node\_modules}
+  \item \texttt{dist} 编译产物全文
+  \item 日志目录全文
+  \item 缓存、\texttt{\_\_pycache\_\_}、临时文件、备份压缩包
+\end{itemize}
+
+这些被排除的内容不是系统核心源码，而是生成物或噪音。维修时应优先看源码、配置和状态文件，而不是先淹没在二进制与日志堆里。
+
+\section{当前结论}
+
+当前系统已经达到以下状态：
+
+\begin{itemize}
+  \item 真实 Gateway 主路径已接入 OpenClaw Memory Sidecar
+  \item 真实 \texttt{chat.send} 已验证会触发 Windows 侧记忆更新
+  \item \texttt{D:\textbackslash openclaw} 已被明确视为 canonical home/workspace
+  \item 维修时可以根据本手册直接定位文件、路径和运行链
+\end{itemize}
+
+\mainmatter
+
+\chapter{系统全貌}
+
+\section{系统由哪两部分组成}
+
+\subsection{Windows 侧：记忆内核}
+
+Windows 侧位于 \texttt{D:\textbackslash openclaw}，它不是 Gateway 本体，而是一个轻量 memory kernel。它负责：
+
+\begin{itemize}
+  \item working memory
+  \item summary / reflection / selfcheck
+  \item knowledge partition
+  \item runtime snapshot
+  \item 规则化清理与压缩
+\end{itemize}
+
+\subsection{WSL 侧：真实 OpenClaw 运行时}
+
+WSL 侧位于 \texttt{/home/park/openclaw}，它负责：
+
+\begin{itemize}
+  \item CLI 入口
+  \item Gateway 服务
+  \item chat / agent 方法分发
+  \item auto-reply / agent turn 执行链
+  \item 通过 sidecar bridge 调用 Windows 侧记忆内核
+\end{itemize}
+
+\section{为什么 \texttt{D:\textbackslash openclaw} 是系统的窝}
+
+这是当前系统的\textbf{约定根目录}。理由如下：
+
+\begin{enumerate}
+  \item Windows 侧 memory kernel 全部在这里
+  \item 启动脚本会把它映射成 WSL 可见的 \texttt{/mnt/d/openclaw}
+  \item WSL 侧 sidecar bridge 默认也指向这个路径
+  \item memory 里的 \texttt{working.json} 和 \texttt{meta.json} 都已经把它记成 canonical home
+\end{enumerate}
+
+\section{真实运行链}
+
+当前真实运行链如下：
+
+\begin{enumerate}
+  \item 用户启动 \texttt{Start-OpenClaw-WSL-Interactive.cmd}
+  \item 脚本进入 WSL，并导出 \texttt{OPENCLAW\_EXTERNAL\_MEMORY\_ROOT=/mnt/d/openclaw}
+  \item WSL 调用 \texttt{/home/park/.local/bin/openclaw gateway start}
+  \item Gateway 服务运行
+  \item 用户发起 \texttt{chat.send} 或相关 agent 流程
+  \item OpenClaw 完成一次真实聊天或 agent turn
+  \item sidecar bridge 触发 \texttt{D:\textbackslash openclaw\textbackslash main.py}
+  \item Windows 侧 memory 执行一轮 compact cycle
+  \item \texttt{working.json}、\texttt{runtime.json} 等状态更新
+\end{enumerate}
+
+\section{本次真实验收结果}
+
+本手册生成前已经做过一次真实聊天主路径验收：
+
+\begin{itemize}
+  \item 使用真实 \texttt{chat.send}
+  \item Gateway 返回 \texttt{status = started}
+  \item 随后检查 \texttt{working.json}
+  \item \texttt{step\_count} 从 42 增加到 43
+  \item \texttt{runtime.json} 新增了 \texttt{step = 43} 的记录
+\end{itemize}
+
+这说明当前不是“只有单独运行 \texttt{main.py} 才有效”，而是\textbf{真实聊天路径已经带动了这套 memory}。
+
+\chapter{结构总表}
+
+\section{仓库顶层结构}
+\begin{verbatim}
+openclaw/
+|- AGENTS.md
+|- main.py
+|- core/
+|- memory/
+|- selfstart/
+|- agent-reach/
+\- memory organization/
+\end{verbatim}
+
+这一节只保留“看结构的方法”和“标准格式示例”，不再直接铺开整棵真实仓库树。真实全量代码与状态仍保留在附录和快照目录中。
+
+\section{Windows 侧手册快照结构}
+\begin{verbatim}
+manual_sources/windows/
+|- AGENTS.md
+|- main.py
+|- Start-OpenClaw-WSL-Interactive.cmd
+|- core/
+|  |- utils.py
+|  |- memory_manager.py
+|  |- router.py
+|  |- retriever.py
+|  |- strategy_manager.py
+|  |- reflection_manager.py
+|  |- cleaner.py
+|  |- executor.py
+|  \- selfcheck_manager.py
+\- memory/
+   |- working.json
+   |- summary.json
+   |- strategy.json
+   |- reflection.json
+   |- selfcheck.json
+   |- runtime.json
+   |- meta.json
+   \- knowledge/
+\end{verbatim}
+
+格式原则：
+\begin{itemize}
+  \item 只展示层级、角色和代表性文件。
+  \item 不在“结构总表”里铺开杂项缓存、备份、临时文件和历史噪音。
+  \item 真正需要逐字核对代码时，再去看附录。
+\end{itemize}
+
+\section{WSL 侧手册快照结构}
+\begin{verbatim}
+manual_sources/wsl/
+|- bin/
+|  \- openclaw
+|- package.json
+\- src/
+   |- cli/
+   |  \- gateway-cli/
+   |     |- run.ts
+   |     \- run-loop.ts
+   |- infra/
+   |  \- external-memory-kernel.ts
+   |- gateway/
+   |  \- server-methods/
+   |     |- chat.ts
+   |     \- agent.ts
+   \- auto-reply/
+      \- reply/
+         \- agent-runner.ts
+\end{verbatim}
+
+这一页的目标是让维护者先知道“应该去哪一层找什么”，而不是先被真实仓库里的全部名字淹没。
+
+\chapter{文件职责总览}
+
+\section{Windows 侧文件职责}
+
+\begin{longtable}{p{0.32\textwidth}p{0.58\textwidth}}
+\toprule
+\textbf{文件} & \textbf{职责} \\
+\midrule
+\endhead
+\texttt{AGENTS.md} & 当前 OpenClaw Memory Sidecar 的操作约束和规则文本 \\
+\texttt{main.py} & 单轮 memory cycle 入口，串联各模块 \\
+\texttt{selfstart/Start-OpenClaw-WSL-Interactive.cmd} & 启动链，显式导出 external memory root \\
+\texttt{core/utils.py} & 基础工具、归一化、JSON 与 token 辅助 \\
+\texttt{core/memory\_manager.py} & memory 文件初始化、读写、知识写入、runtime 记录 \\
+\texttt{core/router.py} & query 到 partition 的确定性路由 \\
+\texttt{core/retriever.py} & 轻量检索、缓存复用、top-k 控制 \\
+\texttt{core/strategy\_manager.py} & 策略选择、偏斜控制、使用统计 \\
+\texttt{core/reflection\_manager.py} & 周期性短反思 \\
+\texttt{core/cleaner.py} & 去重、近重复合并、summary 压缩 \\
+\texttt{core/executor.py} & 最小执行器 \\
+\texttt{core/selfcheck\_manager.py} & 数值评估、模式切换、建议与补丁守卫 \\
+\texttt{memory/working.json} & 当前工作状态与步数 \\
+\texttt{memory/summary.json} & 持久摘要 \\
+\texttt{memory/strategy.json} & 可复用策略 \\
+\texttt{memory/reflection.json} & 简短可执行 insight \\
+\texttt{memory/selfcheck.json} & health、checks、suggestions、patch history \\
+\texttt{memory/runtime.json} & 运行快照 \\
+\texttt{memory/meta.json} & 稳定规则与系统约束 \\
+\texttt{memory/knowledge/programming.json} & 编程和系统知识 \\
+\texttt{memory/knowledge/general.json} & 一般规则和偏好 \\
+\texttt{memory/knowledge/science.json} & 科学分区 \\
+\texttt{memory/knowledge/finance.json} & 金融分区 \\
+\bottomrule
+\end{longtable}
+
+\section{WSL 侧文件职责}
+
+\begin{longtable}{p{0.32\textwidth}p{0.58\textwidth}}
+\toprule
+\textbf{文件} & \textbf{职责} \\
+\midrule
+\endhead
+\texttt{bin/openclaw} & WSL 实际 CLI 包装器 \\
+\texttt{package.json} & 包元数据和 CLI 定义 \\
+\texttt{src/cli/gateway-cli/run.ts} & \texttt{gateway run} 启动命令逻辑 \\
+\texttt{src/cli/gateway-cli/run-loop.ts} & Gateway 生命周期主循环 \\
+\texttt{src/infra/external-memory-kernel.ts} & sidecar bridge，负责调用 Windows 侧 OpenClaw Memory Sidecar \\
+\texttt{src/gateway/server-methods/chat.ts} & 真实 \texttt{chat.send} 主路径，已接 sidecar \\
+\texttt{src/gateway/server-methods/agent.ts} & 真实 \texttt{agent} RPC 主路径，已接 sidecar \\
+\texttt{src/auto-reply/reply/agent-runner.ts} & 真实 reply-agent 主路径，已接 sidecar \\
+\bottomrule
+\end{longtable}
+
+\chapter{逐文件解释}
+
+\section{Windows 侧解释}
+
+\subsection{\texttt{AGENTS.md}}
+这是当前 OpenClaw Memory Sidecar 的操作契约。它不是算法代码，但它定义了这套系统该如何理解任务、如何控制行为边界、如何避免无关扩张。
+
+\subsection{\texttt{main.py}}
+这是 OpenClaw Memory Sidecar 的总入口。任何一次 memory cycle 都从这里开始。它负责调用各个 core 模块，并决定本轮是否进行检索、反思、summary 压缩、自检、runtime 记录。
+
+\subsection{\texttt{Start-OpenClaw-WSL-Interactive.cmd}}
+这不是 Gateway 主实现，但它是用户最直观的启动入口。当前它有一个关键职责：把 \texttt{/mnt/d/openclaw} 作为 external memory root 显式导出给 WSL 运行时。
+
+\subsection{\texttt{core} 目录}
+\texttt{core} 目录是 Windows 侧记忆内核的逻辑层。这里的每个文件都尽量保持单一职责，避免把所有逻辑压进 \texttt{main.py}。
+
+\subsection{\texttt{memory} 目录}
+\texttt{memory} 目录是持久化状态层。它既不是原始日志仓库，也不是 transcript 仓库，而是压缩后的长期状态与知识。
+
+\section{WSL 侧解释}
+
+\subsection{\texttt{bin/openclaw}}
+这是 WSL 里用户最终调用到的 \texttt{openclaw} 命令。它本身不是核心逻辑，只是把命令转发给 Node CLI 入口。
+
+\subsection{\texttt{package.json}}
+这里定义了 \texttt{openclaw} 作为 CLI 包如何暴露给系统，是 CLI 身份和构建脚本的根。
+
+\subsection{\texttt{src/cli/gateway-cli/run.ts}}
+这是前台运行 Gateway 的命令逻辑。它负责解析运行参数，并把启动动作交给真正的 server 启动函数。
+
+\subsection{\texttt{src/cli/gateway-cli/run-loop.ts}}
+这是 Gateway 服务的生命周期主循环。它负责服务启动、关停、重启、锁管理、信号处理、重启后的继续运行。
+
+\subsection{\texttt{src/infra/external-memory-kernel.ts}}
+这是本次集成的核心 bridge。它不直接实现 memory，而是作为 WSL 侧的 sidecar 调用器，去触发 \texttt{D:\textbackslash openclaw} 中的 OpenClaw Memory Sidecar。
+
+\subsection{\texttt{src/gateway/server-methods/chat.ts}}
+这是最重要的真实用户主路径之一。用户发一句话，本质上会走到这里。现在这个文件在聊天成功或失败后会触发一次 sidecar memory run。
+
+\subsection{\texttt{src/gateway/server-methods/agent.ts}}
+当系统通过 RPC 形式直接触发 agent 流程时，会走这个文件。它现在也会在完成后触发 memory sidecar。
+
+\subsection{\texttt{src/auto-reply/reply/agent-runner.ts}}
+这是 reply-agent 的实际执行主路径。对于真实 agent turn，这是最关键的完成点之一。它现在在非 heartbeat 情况下会触发 memory sidecar。
+
+\chapter{如何维修}
+
+\section{最常见问题}
+
+\subsection{发了消息，但 memory 不更新}
+
+优先按下面顺序查：
+
+\begin{enumerate}
+  \item \texttt{python main.py} 是否能独立运行
+  \item WSL 源码改完后是否重新 \texttt{pnpm build}
+  \item Gateway 服务是否真的重启到新构建
+  \item \texttt{chat.send} 实际是否走到当前接入路径
+  \item \texttt{D:\textbackslash openclaw} 是否仍存在、是否仍包含 \texttt{main.py}
+\end{enumerate}
+
+\subsection{Gateway 服务起不来}
+
+\begin{enumerate}
+  \item 查 \texttt{journalctl --user -u openclaw-gateway.service -n 200 --no-pager}
+  \item 查 \texttt{/tmp/openclaw/openclaw-YYYY-MM-DD.log}
+  \item 判断是服务没起来、起来后秒退、还是 UI 构建卡住
+\end{enumerate}
+
+\subsection{系统记不住“窝”}
+
+查三处：
+
+\begin{enumerate}
+  \item \texttt{Start-OpenClaw-WSL-Interactive.cmd} 是否仍导出 \texttt{OPENCLAW\_EXTERNAL\_MEMORY\_ROOT=/mnt/d/openclaw}
+  \item \texttt{src/infra/external-memory-kernel.ts} 默认 root 是否仍是 \texttt{/mnt/d/openclaw}
+  \item \texttt{memory/meta.json} 与 \texttt{memory/working.json} 是否仍把 \texttt{D:\textbackslash openclaw} 视为 canonical home
+\end{enumerate}
+
+\section{推荐维修流程}
+
+\begin{enumerate}
+  \item 先备份
+  \item 只改一个挂点或一个模块
+  \item 跑类型检查
+  \item 重新构建 WSL 侧 dist
+  \item 重启 gateway
+  \item 发一条真实消息
+  \item 检查 \texttt{working.json} 的 \texttt{step\_count} 是否增长
+  \item 检查 \texttt{runtime.json} 是否新增记录
+\end{enumerate}
+
+\appendix
+
+\chapter{Windows 侧完整文件快照}
+
+\codechapter{AGENTS.md}{
+这份文件定义了当前 Windows 侧 OpenClaw Memory Sidecar 的行为契约，是整个侧车系统的规则起点。
+}{manual_sources/windows/AGENTS.md}
+
+\codechapter{main.py}{
+这是单轮 memory cycle 的总入口，也是从 sidecar bridge 最终会调用到的 OpenClaw Memory Sidecar 核心入口。
+}{manual_sources/windows/main.py}
+
+\codechapter{Start-OpenClaw-WSL-Interactive.cmd}{
+这是启动链条文件，当前显式把 \texttt{/mnt/d/openclaw} 作为 external memory root 传给 WSL。
+}{manual_sources/windows/Start-OpenClaw-WSL-Interactive.cmd}
+
+\codechapter{core/utils.py}{
+提供 JSON 处理、文本归一化、token 处理和通用基础工具。
+}{manual_sources/windows/core/utils.py}
+
+\codechapter{core/memory\_manager.py}{
+负责 memory 文件创建、读写、知识写入、summary 追加、runtime 快照持久化。
+}{manual_sources/windows/core/memory_manager.py}
+
+\codechapter{core/router.py}{
+负责把输入路由到 programming / science / finance / general 分区。
+}{manual_sources/windows/core/router.py}
+
+\codechapter{core/retriever.py}{
+负责检索、query 复用、top-k 控制和索引读取。
+}{manual_sources/windows/core/retriever.py}
+
+\codechapter{core/strategy\_manager.py}{
+负责策略选择、使用统计、偏斜控制。
+}{manual_sources/windows/core/strategy_manager.py}
+
+\codechapter{core/reflection\_manager.py}{
+负责周期性生成简短可执行的反思。
+}{manual_sources/windows/core/reflection_manager.py}
+
+\codechapter{core/cleaner.py}{
+负责 exact duplicate 与 near duplicate 清理，以及 summary 压缩。
+}{manual_sources/windows/core/cleaner.py}
+
+\codechapter{core/executor.py}{
+负责最小执行上下文的构建和一步执行结果。
+}{manual_sources/windows/core/executor.py}
+
+\codechapter{core/selfcheck\_manager.py}{
+负责数值型 selfcheck、mode、suggestions 和 patch safeguard。
+}{manual_sources/windows/core/selfcheck_manager.py}
+
+\codechapter{memory/working.json}{
+当前工作状态，包含 step、mode、goal、last query、last result keys 等。
+}{manual_sources/windows/memory/working.json}
+
+\codechapter{memory/summary.json}{
+长期摘要，包含 facts、decisions、progress、failures、anti-patterns。
+}{manual_sources/windows/memory/summary.json}
+
+\codechapter{memory/strategy.json}{
+可复用策略及其使用统计。
+}{manual_sources/windows/memory/strategy.json}
+
+\codechapter{memory/reflection.json}{
+简短、可执行的 reflection 列表。
+}{manual_sources/windows/memory/reflection.json}
+
+\codechapter{memory/selfcheck.json}{
+当前 health 历史、自检记录、建议和 patch 审计。
+}{manual_sources/windows/memory/selfcheck.json}
+
+\codechapter{memory/runtime.json}{
+每次执行后写入的紧凑运行快照。
+}{manual_sources/windows/memory/runtime.json}
+
+\codechapter{memory/meta.json}{
+稳定规则、模式、约束、评估规则。
+}{manual_sources/windows/memory/meta.json}
+
+\codechapter{memory/knowledge/programming.json}{
+编程和系统操作相关知识。
+}{manual_sources/windows/memory/knowledge/programming.json}
+
+\codechapter{memory/knowledge/general.json}{
+一般知识、偏好和非编程规则。
+}{manual_sources/windows/memory/knowledge/general.json}
+
+\codechapter{memory/knowledge/science.json}{
+科学分区当前快照。
+}{manual_sources/windows/memory/knowledge/science.json}
+
+\codechapter{memory/knowledge/finance.json}{
+金融分区当前快照。
+}{manual_sources/windows/memory/knowledge/finance.json}
+
+\chapter{WSL 侧完整文件快照}
+
+\codechapter{bin/openclaw}{
+这是 WSL 里用户最终调用到的 \texttt{openclaw} 命令包装器。
+}{manual_sources/wsl/bin/openclaw}
+
+\codechapter{package.json}{
+定义 OpenClaw CLI 包身份、bin 映射、构建脚本和测试脚本。
+}{manual_sources/wsl/package.json}
+
+\codechapter{src/cli/gateway-cli/run.ts}{
+定义 \texttt{gateway run} 及其参数解析和 server 启动入口。
+}{manual_sources/wsl/src/cli/gateway-cli/run.ts}
+
+\codechapter{src/cli/gateway-cli/run-loop.ts}{
+Gateway 生命周期循环、重启、关停、信号处理和锁管理。
+}{manual_sources/wsl/src/cli/gateway-cli/run-loop.ts}
+
+\codechapter{src/infra/external-memory-kernel.ts}{
+当前 sidecar bridge 的完整实现。它决定何时、如何从 WSL 调用 Windows 侧 OpenClaw Memory Sidecar。
+}{manual_sources/wsl/src/infra/external-memory-kernel.ts}
+
+\codechapter{src/gateway/server-methods/chat.ts}{
+真实聊天主路径，用户一句话最终会走到这里。当前已接入 \texttt{gateway-chat} sidecar 调用。
+}{manual_sources/wsl/src/gateway/server-methods/chat.ts}
+
+\codechapter{src/gateway/server-methods/agent.ts}{
+真实 agent RPC 主路径，当前已接入 \texttt{gateway-agent} sidecar 调用。
+}{manual_sources/wsl/src/gateway/server-methods/agent.ts}
+
+\codechapter{src/auto-reply/reply/agent-runner.ts}{
+真实 reply-agent 主路径，当前已接入 \texttt{reply-agent} sidecar 调用。
+}{manual_sources/wsl/src/auto-reply/reply/agent-runner.ts}
+
+\backmatter
+\chapter{最后说明}
+
+这份手册的设计目的不是“把所有文件机械堆一起”，而是让后来维修的人能回答四个问题：
+
+\begin{enumerate}
+  \item 系统现在到底怎么跑
+  \item 哪些文件是真正关键的
+  \item 真实消息为什么会更新 memory
+  \item 出故障时应该先看哪里、先修哪里
+\end{enumerate}
+
+因此，这份文档同时保留了：
+
+\begin{itemize}
+  \item 结构解释
+  \item 运行链解释
+  \item 维修流程
+  \item 完整源码与状态快照
+\end{itemize}
+
+如果后续继续演化系统，建议每次大改后重新导出一版手册，以避免“代码已经变了，手册还是旧的”这种二次故障。
+
+\end{document}

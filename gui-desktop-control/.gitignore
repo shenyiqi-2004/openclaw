@@ -1,0 +1,4 @@
+*.png
+*.log
+*.pid
+__pycache__/

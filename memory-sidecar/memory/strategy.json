@@ -1,0 +1,37 @@
+{
+  "strategies": [
+    {
+      "name": "direct_execution",
+      "description": "Do the simplest valid next action directly when the next step is obvious.",
+      "score": 3.0,
+      "usage": 39,
+      "last_used_step": 75,
+      "when_to_use": [
+        "obvious_next_step",
+        "low_uncertainty"
+      ]
+    },
+    {
+      "name": "decompose_task",
+      "description": "Break larger tasks into smaller steps when uncertainty or scope grows.",
+      "score": 3.0,
+      "usage": 33,
+      "last_used_step": 74,
+      "when_to_use": [
+        "complex_task",
+        "high_uncertainty"
+      ]
+    },
+    {
+      "name": "fixed_order_troubleshooting",
+      "description": "Follow the known troubleshooting order before trying new branches.",
+      "score": 0.95,
+      "usage": 0,
+      "last_used_step": 0,
+      "when_to_use": [
+        "service_recovery",
+        "known_runbook"
+      ]
+    }
+  ]
+}

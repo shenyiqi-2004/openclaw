@@ -1,0 +1,51 @@
+{
+  "goal": "Keep OpenClaw stable, compact, and operational in its canonical home D:\\openclaw.",
+  "current_step": "Review results and continue with the next minimal improvement",
+  "next_action": "Review results and continue with the next minimal improvement",
+  "focus": "operational stability and memory quality",
+  "step_history": [
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the",
+    "review results and continue with the"
+  ],
+  "step_count": 76,
+  "last_action": "Review results and continue with the next minimal improvement",
+  "retrieval_cooldown_until": 31,
+  "knowledge_write_cooldown_until": 17,
+  "last_partition": "programming",
+  "last_strategy": "direct_execution",
+  "last_query": "Keep OpenClaw stable, compact, and operational in its canonical home D:\\openclaw. operational stability and memory quality Review results and continue with the next minimal improvement",
+  "last_result_keys": [
+    "socket-mouse-bridge-host",
+    "xiaohongshu-mcp-troubleshooting-order"
+  ],
+  "recent_suggestion_steps": [],
+  "mode": "normal",
+  "last_health": 0.877,
+  "evolution_budget": {
+    "max_suggestions_per_10_steps": 2,
+    "max_patches_per_20_steps": 1,
+    "disable_patch_after_failures": 2,
+    "patch_failures": 0,
+    "last_patch_step": 20,
+    "no_benefit_patch_count": 0,
+    "auto_patch_disabled": false
+  }
+}

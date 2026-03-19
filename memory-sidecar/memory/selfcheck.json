@@ -1,0 +1,122 @@
+{
+  "checks": [
+    {
+      "memory_pressure": 0.08,
+      "duplicate_ratio": 0.0,
+      "low_importance_ratio": 0.0,
+      "strategy_skew": 0.553,
+      "retrieval_effectiveness": 1.0,
+      "disk_usage": 8085,
+      "complexity_score": 0.25
+    },
+    {
+      "memory_pressure": 0.08,
+      "duplicate_ratio": 0.0,
+      "low_importance_ratio": 0.0,
+      "strategy_skew": 0.538,
+      "retrieval_effectiveness": 1.0,
+      "disk_usage": 8070,
+      "complexity_score": 0.25
+    },
+    {
+      "memory_pressure": 0.03,
+      "duplicate_ratio": 0.0,
+      "low_importance_ratio": 0.0,
+      "strategy_skew": 0.554,
+      "retrieval_effectiveness": 1.0,
+      "disk_usage": 3967,
+      "complexity_score": 0.1
+    },
+    {
+      "memory_pressure": 0.03,
+      "duplicate_ratio": 0.0,
+      "low_importance_ratio": 0.0,
+      "strategy_skew": 0.541,
+      "retrieval_effectiveness": 1.0,
+      "disk_usage": 3967,
+      "complexity_score": 0.1
+    },
+    {
+      "memory_pressure": 0.03,
+      "duplicate_ratio": 0.0,
+      "low_importance_ratio": 0.0,
+      "strategy_skew": 0.545,
+      "retrieval_effectiveness": 1.0,
+      "disk_usage": 3967,
+      "complexity_score": 0.1
+    },
+    {
+      "memory_pressure": 0.03,
+      "duplicate_ratio": 0.0,
+      "low_importance_ratio": 0.0,
+      "strategy_skew": 0.535,
+      "retrieval_effectiveness": 1.0,
+      "disk_usage": 3967,
+      "complexity_score": 0.1
+    }
+  ],
+  "evaluations": [
+    {
+      "health": 0.819,
+      "delta": -0.001,
+      "pressure": 0.08,
+      "noise": 0.0,
+      "complexity": 0.25
+    },
+    {
+      "health": 0.821,
+      "delta": 0.002,
+      "pressure": 0.08,
+      "noise": 0.0,
+      "complexity": 0.25
+    },
+    {
+      "health": 0.875,
+      "delta": 0.054,
+      "pressure": 0.03,
+      "noise": 0.0,
+      "complexity": 0.1
+    },
+    {
+      "health": 0.877,
+      "delta": 0.002,
+      "pressure": 0.03,
+      "noise": 0.0,
+      "complexity": 0.1
+    },
+    {
+      "health": 0.876,
+      "delta": -0.001,
+      "pressure": 0.03,
+      "noise": 0.0,
+      "complexity": 0.1
+    },
+    {
+      "health": 0.877,
+      "delta": 0.001,
+      "pressure": 0.03,
+      "noise": 0.0,
+      "complexity": 0.1
+    }
+  ],
+  "optimizations": [
+    {
+      "at": "2026-03-18T02:40:46+00:00",
+      "items": [
+        "If startup behavior reappears, verify logs and system startup sources before changing scripts."
+      ]
+    }
+  ],
+  "patch_proposals": [],
+  "applied_patches": [
+    {
+      "at": "2026-03-18T02:48:56+00:00",
+      "target_file": "core/retriever.py",
+      "setting": "EARLY_RETURN_SCORE",
+      "old": 5.5,
+      "new": 5.2,
+      "reason": "allow stronger reuse under stability mode"
+    }
+  ],
+  "last_run": "2026-03-18T09:06:06+00:00"
+}

@@ -1,0 +1,23 @@
+{
+  "facts": [
+    "OpenClaw runs in WSL and primarily operates on D:\\openclaw.",
+    "Windows paths should be handled via their WSL mappings rather than treated as inaccessible.",
+    "Mouse control uses the socket-based windows-bridge flow with host 172.18.160.1."
+  ],
+  "decisions": [
+    "Keep long-lived reusable assets in D:\\openclaw and keep transient workspace files elsewhere when possible.",
+    "Do not configure tray, mouse bridge, or related scripts to auto-start on Windows.",
+    "Treat D:\\openclaw\\selfstart as a manual-start directory, not a startup directory.",
+    "Use the fixed Xiaohongshu MCP troubleshooting order before trying extra background checks."
+  ],
+  "failures": [
+    "Startup behavior was previously implemented in the wrong direction by treating selfstart and helper scripts as an auto-start chain."
+  ],
+  "progress": [
+    "Integrated OpenClaw Memory Sidecar into the real OpenClaw chat path and confirmed runtime sync to D:\\openclaw."
+  ],
+  "anti_patterns": [
+    "Do not rebuild Windows auto-start chains unless the user explicitly authorizes it.",
+    "Do not keep raw logs or cache inventories as long-term memory when a concise conclusion is enough."
+  ]
+}
