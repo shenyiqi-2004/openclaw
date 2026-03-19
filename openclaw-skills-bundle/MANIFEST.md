@@ -1,6 +1,6 @@
 # OpenClaw Skills Bundle Manifest
 
-## Active primary entry skills
+## Primary entry skills
 
 - `agent-browser`
 - `find-skills`
@@ -9,9 +9,9 @@
 - `self-improving`
 - `tavily-search`
 
-## On-demand groups
+## Specialized skills still included
 
-### Browser
+### Browser-related
 - `browser-automation`
 - `browser-cash`
 - `browser-use`
@@ -29,7 +29,6 @@ Exported from:
 - `/home/park/openclaw/.openclaw/skills`
 - `/home/park/openclaw/.openclaw/skills-on-demand`
 
-## Export counts
+## Export count
 
-- Active: 61
-- On-demand: 8
+- Skills: 69
