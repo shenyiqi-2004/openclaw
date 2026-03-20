@@ -97,8 +97,12 @@ openclaw-gui-desktop-control/
 ## Quick start
 
 ### 1. Put the repo somewhere Windows can access
-The simplest setup is:
-- clone it to `D:\openclaw-gui-desktop-control`
+Recommended setup:
+- keep it in any Windows-accessible path, or directly in WSL and convert paths with `wslpath -w`
+
+Examples:
+- `C:\Users\<you>\openclaw-gui-desktop-control`
+- `\\wsl.localhost\Ubuntu\home\<you>\...\gui-desktop-control`
 
 You can also keep it in WSL and use `wslpath -w` when calling PowerShell scripts.
 
@@ -108,8 +112,8 @@ Double-click:
 
 Or from cmd:
 ```bat
-cd /d D:\openclaw-gui-desktop-control\windows
-python mouse_bridge.py
+cd /d <path-to-repo>\windows
+py -3 mouse_bridge.py
 ```
 
 > Important: run it in the **current logged-in desktop session**. Do **not** run it as a service or in Session 0.

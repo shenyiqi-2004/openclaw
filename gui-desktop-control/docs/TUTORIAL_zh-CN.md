@@ -63,8 +63,8 @@
 
 ### Windows 端
 ```bat
-cd /d D:\gui-desktop-control\windows
-python mouse_bridge.py
+cd /d <仓库路径>\windows
+py -3 mouse_bridge.py
 ```
 
 或者直接双击：
