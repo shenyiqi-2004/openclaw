@@ -6,9 +6,13 @@ This folder contains the current curated OpenClaw skill pool exported from the l
 
 - `skills/`: the exported OpenClaw skills collection
 
+### Notable additions
+
+- `skills/gui-desktop-control`: Windows desktop GUI automation toolkit for OpenClaw and WSL, covering mouse control, keyboard input, screenshots, and window management. Screenshot interpretation is expected to come from the configured vision-capable OpenClaw model.
+
 ## Current structure
 
-- Exported skills: 69
+- Exported skills: 70
 
 ## Notes
 

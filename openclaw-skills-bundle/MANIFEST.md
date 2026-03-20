@@ -11,6 +11,9 @@
 
 ## Specialized skills still included
 
+### Desktop control
+- `gui-desktop-control`
+
 ### Browser-related
 - `browser-automation`
 - `browser-cash`
@@ -31,4 +34,4 @@ Exported from:
 
 ## Export count
 
-- Skills: 69
+- Skills: 70
