@@ -1,0 +1,16 @@
+{
+  "name": "@openclaw/memory-lancedb-pro",
+  "version": "2026.3.19",
+  "private": true,
+  "description": "Production-safe LanceDB long-term memory plugin for OpenClaw",
+  "type": "module",
+  "dependencies": {
+    "@lancedb/lancedb": "^0.26.2",
+    "openai": "^6.27.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

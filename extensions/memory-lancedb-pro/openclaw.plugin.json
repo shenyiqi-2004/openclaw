@@ -1,0 +1,119 @@
+{
+  "id": "memory-lancedb-pro",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "embedding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "number"
+          }
+        },
+        "required": ["apiKey"]
+      },
+      "dbPath": {
+        "type": "string"
+      },
+      "autoRecall": {
+        "type": "boolean"
+      },
+      "autoCapture": {
+        "type": "boolean"
+      },
+      "recallLimit": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "recallMinScore": {
+        "type": "number",
+        "minimum": 0.3,
+        "maximum": 0.99
+      },
+      "recallMaxChars": {
+        "type": "number",
+        "minimum": 200,
+        "maximum": 2000
+      },
+      "persistMaxPerTurn": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "duplicateScore": {
+        "type": "number",
+        "minimum": 0.8,
+        "maximum": 0.999
+      },
+      "enableManagementTools": {
+        "type": "boolean"
+      }
+    },
+    "required": ["embedding"]
+  },
+  "uiHints": {
+    "embedding.apiKey": {
+      "label": "Embedding API Key",
+      "sensitive": true,
+      "placeholder": "ollama-local",
+      "help": "For local Ollama OpenAI-compatible endpoints, use a dummy value like ollama-local"
+    },
+    "embedding.model": {
+      "label": "Embedding Model",
+      "placeholder": "qwen3-embedding:4b"
+    },
+    "embedding.baseUrl": {
+      "label": "Base URL",
+      "advanced": true,
+      "placeholder": "http://127.0.0.1:11434/v1"
+    },
+    "dbPath": {
+      "label": "Database Path",
+      "advanced": true,
+      "placeholder": "~/.openclaw/memory/lancedb-pro"
+    },
+    "autoRecall": {
+      "label": "Auto Recall"
+    },
+    "autoCapture": {
+      "label": "Auto Capture"
+    },
+    "recallLimit": {
+      "label": "Recall Limit",
+      "advanced": true,
+      "placeholder": "3"
+    },
+    "recallMinScore": {
+      "label": "Recall Min Score",
+      "advanced": true,
+      "placeholder": "0.72"
+    },
+    "recallMaxChars": {
+      "label": "Recall Max Chars",
+      "advanced": true,
+      "placeholder": "700"
+    },
+    "persistMaxPerTurn": {
+      "label": "Persist Max Per Turn",
+      "advanced": true,
+      "placeholder": "2"
+    },
+    "enableManagementTools": {
+      "label": "Enable Management Tools",
+      "advanced": true
+    }
+  }
+}

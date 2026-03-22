@@ -1,0 +1,9 @@
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+memory/acks.jsonl
+memory/commits.jsonl
+memory/events.jsonl
+memory/recovery.json
+memory/traces.jsonl
