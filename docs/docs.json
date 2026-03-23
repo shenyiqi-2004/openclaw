@@ -947,6 +947,7 @@
                 "pages": [
                   "pi",
                   "concepts/architecture",
+                  "design/runtime-architecture-v2",
                   "concepts/agent",
                   "concepts/agent-loop",
                   "concepts/system-prompt",
