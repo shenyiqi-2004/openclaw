@@ -298,6 +298,64 @@ Patch did not auto-apply & auto apply is disabled by default & enable only throu
   \item dedicated trace dashboard
   \item broader patch allowlist governance
 \end{itemize}
+\chapter{Platform Runtime Architecture v2}
+This sidecar manual now has a platform-level companion document:
+\begin{itemize}
+  \item \texttt{/home/park/openclaw/docs/design/runtime-architecture-v2.md}
+\end{itemize}
+That file is the canonical engineering summary for the full WSL OpenClaw runtime. This chapter mirrors the high-level runtime facts so the sidecar manual stays usable as a handoff document.
+\section{Canonical Platform Facts}
+\begin{itemize}
+  \item Canonical runtime root: \texttt{/home/park/openclaw}
+  \item Canonical memory root: \texttt{/home/park/openclaw/memory-sidecar}
+  \item Canonical long-term memory engine: \texttt{memory-lancedb-pro}
+  \item Deprecated paths: \texttt{/mnt/d/openclaw}, \texttt{D:\textbackslash openclaw}
+  \item Source of truth: current code and runtime config under \texttt{/home/park/openclaw/.openclaw/openclaw.json}
+\end{itemize}
+\section{Platform Runtime Layers}
+\begin{longtable}{p{0.24\textwidth}p{0.30\textwidth}p{0.34\textwidth}}
+\toprule
+\textbf{Layer} & \textbf{Key Files} & \textbf{Responsibility}\\
+\midrule
+\endhead
+CLI & \texttt{openclaw.mjs}, \texttt{src/entry.ts}, \texttt{src/cli/run-main.ts} & startup normalization, command routing, gateway launch\\
+Gateway & \texttt{src/cli/gateway-cli/run.ts}, \texttt{run-loop.ts}, \texttt{src/gateway/server.impl.ts} & request ingress, gateway lifecycle, request dispatch\\
+Agent / Auto-reply & \texttt{src/auto-reply/dispatch.ts}, \texttt{reply/agent-runner.ts} & reply execution, followup, turn handling\\
+Orchestration & \texttt{src/infra/runtime-work-model.ts}, \texttt{core/orchestration.py} & work classification, sidecar control decisions\\
+Execution & \texttt{agent-runner-execution.ts}, \texttt{core/cycle.py} & reply execution and single sidecar cycle\\
+Infra / Adapter & \texttt{src/infra/external-memory-kernel.ts}, \texttt{post-run-memory.ts}, \texttt{memory-interaction.ts} & durable emit, root resolution, backend boundary\\
+Memory & \texttt{core/backends/*}, \texttt{memory-lancedb-pro-bridge.ts} & long-term backend access and fallback handling\\
+Observability & \texttt{runtime-layout-status.ts}, \texttt{core/events.py}, \texttt{memory/*.jsonl} & runtime view, trace, ack, commit, replay visibility\\
+\bottomrule
+\end{longtable}
+\section{End-to-End Runtime Flow}
+\begin{enumerate}
+  \item CLI startup enters \texttt{src/entry.ts}, then \texttt{src/cli/run-main.ts}.
+  \item \texttt{gateway start} resolves runtime options in \texttt{src/cli/gateway-cli/run.ts}.
+  \item Gateway lifecycle is maintained in \texttt{src/cli/gateway-cli/run-loop.ts}.
+  \item Request-time handlers execute in \texttt{src/gateway/server-methods/chat.ts} and \texttt{src/gateway/server-methods/agent.ts}.
+  \item Auto-reply turns execute in \texttt{src/auto-reply/reply/agent-runner.ts}.
+  \item Post-request memory work is emitted through \texttt{src/infra/post-run-memory.ts} and \texttt{src/infra/external-memory-kernel.ts}.
+  \item Worker-time sidecar processing happens in \texttt{core/worker.py} and \texttt{core/cycle.py}.
+  \item Long-term memory access is routed through backend adapters, with \texttt{memory-lancedb-pro} as canonical and JSON snapshots as fallback only.
+  \item Runtime, trace, ack, and commit records are written after worker-time processing.
+\end{enumerate}
+\section{Runtime Model}
+\begin{itemize}
+  \item request-time work: request validation, reply execution, agent execution, response delivery
+  \item post-request work: durable memory event emit
+  \item worker/background work: sidecar queue consumption and single-cycle control
+  \item replay/recovery work: replayable event reclamation and duplicate no-op acknowledgement
+  \item maintenance work: gateway lock handling, restart loop, heartbeat and maintenance routines
+\end{itemize}
+\section{Platform Debug Entry Points}
+\begin{itemize}
+  \item \texttt{node --import tsx src/entry.ts runtime --json}
+  \item \texttt{python3 main.py --print-root}
+  \item \texttt{python3 main.py --queue-status}
+  \item \texttt{python3 main.py --trace-view 5}
+  \item inspect \texttt{memory/events.jsonl}, \texttt{memory/acks.jsonl}, \texttt{memory/commits.jsonl}, \texttt{memory/traces.jsonl}, and \texttt{memory/runtime.json}
+\end{itemize}
 \backmatter
 \chapter*{Conclusion}
 \addcontentsline{toc}{chapter}{Conclusion}
