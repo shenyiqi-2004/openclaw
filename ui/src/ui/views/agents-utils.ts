@@ -134,6 +134,22 @@ export function resolveAgentConfig(config: Record<string, unknown> | null, agent
   };
 }
 
+export function resolveConfiguredAgentIds(config: Record<string, unknown> | null): string[] {
+  const cfg = config as ConfigSnapshot | null;
+  const list = cfg?.agents?.list ?? [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const entry of list) {
+    const id = typeof entry?.id === "string" ? entry.id.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 export type AgentContext = {
   workspace: string;
   model: string;
@@ -402,9 +418,13 @@ export function buildModelOptions(
   current?: string | null,
 ) {
   const options = resolveConfiguredModels(configForm);
-  const hasCurrent = current ? options.some((option) => option.value === current) : false;
-  if (current && !hasCurrent) {
-    options.unshift({ value: current, label: `Current (${current})` });
+  const normalizedCurrent = current?.trim() || null;
+  if (normalizedCurrent) {
+    const remaining = options.filter((option) => option.value !== normalizedCurrent);
+    options.splice(0, options.length, {
+      value: normalizedCurrent,
+      label: `Current (${normalizedCurrent})`,
+    }, ...remaining);
   }
   if (options.length === 0) {
     return html`

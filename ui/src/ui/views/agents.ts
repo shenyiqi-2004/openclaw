@@ -23,6 +23,7 @@ import {
   normalizeModelValue,
   parseFallbackList,
   resolveAgentConfig,
+  resolveConfiguredAgentIds,
   resolveAgentEmoji,
   resolveEffectiveModelFallbacks,
   resolveModelLabel,
@@ -100,7 +101,12 @@ export type AgentContext = {
 };
 
 export function renderAgents(props: AgentsProps) {
-  const agents = props.agentsList?.agents ?? [];
+  const configuredIds = resolveConfiguredAgentIds(props.configForm);
+  const rawAgents = props.agentsList?.agents ?? [];
+  const agents =
+    configuredIds.length > 0
+      ? rawAgents.filter((agent) => configuredIds.includes(agent.id))
+      : rawAgents;
   const defaultId = props.agentsList?.defaultId ?? null;
   const selectedId = props.selectedAgentId ?? defaultId ?? agents[0]?.id ?? null;
   const selectedAgent = selectedId
