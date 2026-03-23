@@ -65,6 +65,35 @@ def event_context_from_record(record: dict[str, Any], *, replayed: bool) -> Even
     )
 
 
+def build_worker_task_id(event: EventContext | None) -> str:
+    if event is None or not event.event_id:
+        return ""
+    attempt = int(event.attempt_count or 0)
+    return f"{event.event_id}:{attempt}" if attempt > 0 else event.event_id
+
+
+def build_correlation(
+    event: EventContext | None,
+    *,
+    runtime_step: int = 0,
+    ack_id: str = "",
+    work_class: str = "",
+    worker_task_id: str = "",
+    replay_attempt: int | None = None,
+) -> dict[str, Any]:
+    if event is None:
+        return {}
+    return {
+        "request_id": event.request_id,
+        "event_id": event.event_id,
+        "worker_task_id": worker_task_id or build_worker_task_id(event),
+        "runtime_step": int(runtime_step),
+        "ack_id": ack_id,
+        "replay_attempt": int(event.attempt_count if replay_attempt is None else replay_attempt),
+        "work_class": work_class,
+    }
+
+
 def append_jsonl(base_dir: str | Path, filename: str, record: dict[str, Any]) -> None:
     path = _jsonl_path(base_dir, filename)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,6 +126,12 @@ def append_commit_record(
         "ack_id": ack_id,
         "runtime_step": runtime_step,
         "failure_reason": failure_reason,
+        "correlation": build_correlation(
+            event,
+            runtime_step=runtime_step,
+            ack_id=ack_id,
+            replay_attempt=event.attempt_count,
+        ),
     }
     append_jsonl(base_dir, "commits.jsonl", record)
     return record
@@ -129,6 +164,15 @@ def append_trace(
             }
         )
     record.update(extra)
+    if event is not None and "correlation" not in record:
+        record["correlation"] = build_correlation(
+            event,
+            runtime_step=int(record.get("runtime_step", 0) or 0),
+            ack_id=str(record.get("ack_id", "") or ""),
+            work_class=str(record.get("work_class", "") or ""),
+            worker_task_id=str(record.get("worker_task_id", "") or ""),
+            replay_attempt=int(record.get("replay_attempt", event.attempt_count) or 0),
+        )
     append_jsonl(base_dir, "traces.jsonl", record)
 
 
@@ -217,7 +261,14 @@ def ack_event(
         "ack": True,
         "outcome": outcome,
         "details": details or {},
+        "correlation": build_correlation(
+            event,
+            runtime_step=int((details or {}).get("runtime_step", 0) or 0),
+            work_class=str((details or {}).get("work_class", "") or ""),
+            replay_attempt=event.attempt_count,
+        ),
     }
+    record["correlation"]["ack_id"] = record["ack_id"]
     append_jsonl(base_dir, "acks.jsonl", record)
     update_recovery_event(
         base_dir,
@@ -334,4 +385,47 @@ def get_queue_status(base_dir: str | Path) -> dict[str, Any]:
         "recent_ack_event_id": str(recent_ack.get("event_id", "")),
         "recent_failed_event_id": str(recent_failed.get("event_id", "")),
         "recent_trace_event_id": str(recent_trace.get("event_id", "")),
+        "recent_worker_task_id": str(
+            recent_ack.get("correlation", {}).get("worker_task_id")
+            or recent_trace.get("correlation", {}).get("worker_task_id")
+            or ""
+        ),
     }
+
+
+def read_recent_correlated_records(base_dir: str | Path, limit: int = 5) -> list[dict[str, Any]]:
+    runtime_records = _load_json(_memory_dir(base_dir) / "runtime.json", {}).get("records", [])
+    if not isinstance(runtime_records, list):
+        runtime_records = []
+    traces = iter_jsonl(_jsonl_path(base_dir, "traces.jsonl"))
+    acks = iter_jsonl(_jsonl_path(base_dir, "acks.jsonl"))
+    commits = iter_jsonl(_jsonl_path(base_dir, "commits.jsonl"))
+    recovery = _load_json(_memory_dir(base_dir) / "recovery.json", {"events": {}})
+    recovery_events = recovery.get("events", {}) if isinstance(recovery, dict) else {}
+    if not isinstance(recovery_events, dict):
+        recovery_events = {}
+
+    correlated: list[dict[str, Any]] = []
+    for runtime_record in reversed(runtime_records):
+        if not isinstance(runtime_record, dict):
+            continue
+        event_id = str(runtime_record.get("event_id", "")).strip()
+        if not event_id:
+            continue
+        correlated.append(
+            {
+                "event_id": event_id,
+                "request_id": str(runtime_record.get("request_id", "")),
+                "runtime_step": int(runtime_record.get("step", 0) or 0),
+                "work_class": str(runtime_record.get("work_class", "")),
+                "worker_task_id": str(runtime_record.get("worker_task_id", "")),
+                "runtime": runtime_record,
+                "ack": _last_matching_record(acks, "event_id", event_id) or {},
+                "commit": _last_matching_record(commits, "event_id", event_id) or {},
+                "trace": _last_matching_record(traces, "event_id", event_id) or {},
+                "recovery": recovery_events.get(event_id, {}),
+            }
+        )
+        if len(correlated) >= max(1, limit):
+            break
+    return correlated

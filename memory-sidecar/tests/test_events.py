@@ -5,7 +5,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.events import EventContext, ack_event, claim_next_event, get_queue_status, has_ack, runtime_has_event
+from core.events import (
+    EventContext,
+    ack_event,
+    append_trace,
+    claim_next_event,
+    get_queue_status,
+    has_ack,
+    read_recent_correlated_records,
+    runtime_has_event,
+)
+from core.memory_manager import MemoryManager
 from core.utils import save_json
 
 
@@ -67,6 +77,54 @@ class EventHelpersTests(unittest.TestCase):
             self.assertEqual(event.event_id, "evt-1")
             status = get_queue_status(tmpdir)
             self.assertEqual(status["processing"], 1)
+
+    def test_recent_correlated_records_link_runtime_trace_and_ack(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = MemoryManager(tmpdir)
+            manager.initialize()
+            event = EventContext(
+                event_id="evt-corr",
+                request_id="req-corr",
+                source="gateway-chat",
+                status="success",
+                session_key="session-corr",
+                agent_id="",
+                replayed=False,
+                attempt_count=1,
+            )
+            runtime = manager.load_runtime()
+            runtime["records"] = [
+                {
+                    "event_id": "evt-corr",
+                    "request_id": "req-corr",
+                    "step": 7,
+                    "work_class": "background",
+                    "worker_task_id": "evt-corr:1",
+                }
+            ]
+            manager.save_runtime(runtime)
+            append_trace(
+                tmpdir,
+                event=event,
+                action="sidecar_orchestration_trace",
+                runtime_step=7,
+                work_class="background",
+                worker_task_id="evt-corr:1",
+                replay_attempt=1,
+            )
+            ack_event(
+                tmpdir,
+                event,
+                outcome="applied",
+                details={"runtime_step": 7, "work_class": "background"},
+            )
+            records = read_recent_correlated_records(tmpdir, limit=1)
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["event_id"], "evt-corr")
+            self.assertEqual(records[0]["runtime_step"], 7)
+            self.assertEqual(records[0]["worker_task_id"], "evt-corr:1")
+            self.assertEqual(records[0]["ack"].get("correlation", {}).get("event_id"), "evt-corr")
+            self.assertEqual(records[0]["trace"].get("correlation", {}).get("worker_task_id"), "evt-corr:1")
 
 
 if __name__ == "__main__":

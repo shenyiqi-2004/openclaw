@@ -8,6 +8,8 @@ from typing import Any
 
 from core.utils import clamp, now_iso
 
+PATCH_APPLY_ENV_FLAG = "OPENCLAW_ENABLE_AUTO_PATCH"
+PATCH_DANGEROUS_ACTION = "self-modify-source"
 PATCH_FILE_SETTING_ALLOWLIST = {
     ("core/retriever.py", "EARLY_RETURN_SCORE"),
     ("core/cleaner.py", "STALE_REMOVE_STEPS"),
@@ -191,11 +193,28 @@ def generate_patch_proposals(
     return proposals[:1]
 
 
-def patch_apply_enabled(working: dict[str, Any]) -> bool:
-    if os.environ.get("OPENCLAW_ENABLE_AUTO_PATCH", "").strip() == "1":
-        return True
+def describe_patch_policy(working: dict[str, Any]) -> dict[str, Any]:
     budget = working.get("evolution_budget", {})
-    return bool(budget.get("auto_patch_enabled", False)) and not bool(budget.get("auto_patch_disabled", True))
+    env_enabled = os.environ.get(PATCH_APPLY_ENV_FLAG, "").strip() == "1"
+    config_enabled = bool(budget.get("auto_patch_enabled", False))
+    config_disabled = bool(budget.get("auto_patch_disabled", True))
+    enabled = env_enabled or (config_enabled and not config_disabled)
+    source = "env" if env_enabled else "config" if enabled else "disabled"
+    return {
+        "enabled": enabled,
+        "source": source,
+        "dangerous_action": PATCH_DANGEROUS_ACTION,
+        "manual_apply_required": not enabled,
+        "allowlisted_targets": sorted(f"{file}:{setting}" for file, setting in PATCH_FILE_SETTING_ALLOWLIST),
+    }
+
+
+def patch_apply_enabled(working: dict[str, Any]) -> bool:
+    return bool(describe_patch_policy(working)["enabled"])
+
+
+def is_patch_target_allowlisted(proposal: dict[str, Any]) -> bool:
+    return (proposal.get("target_file"), proposal.get("setting")) in PATCH_FILE_SETTING_ALLOWLIST
 
 
 def apply_safe_patch_proposals(
@@ -203,33 +222,88 @@ def apply_safe_patch_proposals(
     proposals: list[dict[str, Any]],
     working: dict[str, Any],
 ) -> dict[str, Any]:
+    policy = describe_patch_policy(working)
     if not proposals:
-        return {"enabled": patch_apply_enabled(working), "attempted": False, "applied": False, "applied_patches": [], "reason": "no-proposals"}
+        return {
+            "enabled": bool(policy["enabled"]),
+            "attempted": False,
+            "applied": False,
+            "applied_patches": [],
+            "reason": "no-proposals",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": bool(policy["manual_apply_required"]),
+            "proposal_allowed": False,
+        }
     budget = working.get("evolution_budget", {})
     step_count = int(working.get("step_count", 0))
-    if not patch_apply_enabled(working):
+    if not bool(policy["enabled"]):
         return {
             "enabled": False,
             "attempted": False,
             "applied": False,
             "applied_patches": [],
             "reason": "auto-patch-disabled",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": True,
+            "proposal_allowed": True,
         }
     if step_count - int(budget.get("last_patch_step", 0)) < 20:
-        return {"enabled": True, "attempted": False, "applied": False, "applied_patches": [], "reason": "patch-cooldown"}
+        return {
+            "enabled": True,
+            "attempted": False,
+            "applied": False,
+            "applied_patches": [],
+            "reason": "patch-cooldown",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": False,
+            "proposal_allowed": True,
+        }
     if int(budget.get("patch_failures", 0)) >= int(budget.get("disable_patch_after_failures", 2)):
-        return {"enabled": True, "attempted": False, "applied": False, "applied_patches": [], "reason": "patch-failures-exceeded"}
+        return {
+            "enabled": True,
+            "attempted": False,
+            "applied": False,
+            "applied_patches": [],
+            "reason": "patch-failures-exceeded",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": False,
+            "proposal_allowed": True,
+        }
 
     proposal = proposals[0]
-    if (proposal.get("target_file"), proposal.get("setting")) not in PATCH_FILE_SETTING_ALLOWLIST:
-        return {"enabled": True, "attempted": False, "applied": False, "applied_patches": [], "reason": "proposal-not-allowlisted"}
+    if not is_patch_target_allowlisted(proposal):
+        return {
+            "enabled": True,
+            "attempted": False,
+            "applied": False,
+            "applied_patches": [],
+            "reason": "proposal-not-allowlisted",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": False,
+            "proposal_allowed": False,
+        }
 
     file_path = Path(base_dir) / str(proposal["target_file"])
     original = file_path.read_text(encoding="utf-8")
     old_line = f"{proposal['setting']} = {proposal['old']}"
     new_line = f"{proposal['setting']} = {proposal['new']}"
     if old_line not in original:
-        return {"enabled": True, "attempted": False, "applied": False, "applied_patches": [], "reason": "target-setting-not-found"}
+        return {
+            "enabled": True,
+            "attempted": False,
+            "applied": False,
+            "applied_patches": [],
+            "reason": "target-setting-not-found",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": False,
+            "proposal_allowed": True,
+        }
 
     updated = original.replace(old_line, new_line, 1)
     try:
@@ -253,6 +327,10 @@ def apply_safe_patch_proposals(
                 "applied": False,
                 "applied_patches": [],
                 "reason": f"py_compile_failed:{result.stderr.strip() or result.stdout.strip() or result.returncode}",
+                "policy": policy,
+                "dangerous_action": PATCH_DANGEROUS_ACTION,
+                "manual_apply_required": False,
+                "proposal_allowed": True,
             }
         runtime_env = dict(os.environ)
         runtime_env["OPENCLAW_SKIP_EVOLUTION"] = "1"
@@ -273,6 +351,10 @@ def apply_safe_patch_proposals(
                 "applied": False,
                 "applied_patches": [],
                 "reason": f"runtime_probe_failed:{runtime_result.stderr.strip() or runtime_result.stdout.strip() or runtime_result.returncode}",
+                "policy": policy,
+                "dangerous_action": PATCH_DANGEROUS_ACTION,
+                "manual_apply_required": False,
+                "proposal_allowed": True,
             }
     except Exception as exc:
         file_path.write_text(original, encoding="utf-8")
@@ -283,6 +365,10 @@ def apply_safe_patch_proposals(
             "applied": False,
             "applied_patches": [],
             "reason": f"exception:{exc}",
+            "policy": policy,
+            "dangerous_action": PATCH_DANGEROUS_ACTION,
+            "manual_apply_required": False,
+            "proposal_allowed": True,
         }
 
     budget["last_patch_step"] = step_count
@@ -297,7 +383,17 @@ def apply_safe_patch_proposals(
         "baseline_health": float(working.get("last_health", 0.0)),
         "benefit_checked": False,
     }
-    return {"enabled": True, "attempted": True, "applied": True, "applied_patches": [applied], "reason": ""}
+    return {
+        "enabled": True,
+        "attempted": True,
+        "applied": True,
+        "applied_patches": [applied],
+        "reason": "",
+        "policy": policy,
+        "dangerous_action": PATCH_DANGEROUS_ACTION,
+        "manual_apply_required": False,
+        "proposal_allowed": True,
+    }
 
 
 def update_no_benefit_patch_state(

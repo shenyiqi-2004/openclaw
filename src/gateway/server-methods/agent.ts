@@ -22,6 +22,7 @@ import {
   resolveAgentOutboundTarget,
 } from "../../infra/outbound/agent-delivery.js";
 import { resolveMessageChannelSelection } from "../../infra/outbound/channel-selection.js";
+import { emitGatewayAgentPostRunMemory } from "../../infra/post-run-memory.js";
 import { classifySessionKeyShape, normalizeAgentId } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
 import { normalizeInputProvenance, type InputProvenance } from "../../sessions/input-provenance.js";
@@ -118,6 +119,11 @@ function dispatchAgentRunFromGateway(params: {
           payload,
         },
       });
+      emitGatewayAgentPostRunMemory({
+        outcome: "success",
+        sessionKey: params.ingressOpts.sessionKey,
+        requestId: params.runId,
+      });
       // Send a second res frame (same id) so TS clients with expectFinal can wait.
       // Swift clients will typically treat the first res as the result and ignore this.
       params.respond(true, payload, undefined, { runId: params.runId });
@@ -138,6 +144,11 @@ function dispatchAgentRunFromGateway(params: {
           payload,
           error,
         },
+      });
+      emitGatewayAgentPostRunMemory({
+        outcome: "error",
+        sessionKey: params.ingressOpts.sessionKey,
+        requestId: params.runId,
       });
       params.respond(false, payload, error, {
         runId: params.runId,

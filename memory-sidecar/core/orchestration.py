@@ -248,7 +248,17 @@ def build_trace_payload(
     runtime_step: int,
     replay_attempt: int,
     ack_id: str,
+    work_class: str,
 ) -> dict[str, Any]:
+    correlation = {
+        "request_id": request_id,
+        "event_id": "",
+        "worker_task_id": "",
+        "runtime_step": runtime_step,
+        "ack_id": ack_id,
+        "replay_attempt": replay_attempt,
+        "work_class": work_class,
+    }
     return {
         "recall_requested": recall_requested,
         "recall_reason": recall_reason,
@@ -284,4 +294,6 @@ def build_trace_payload(
         "runtime_step": runtime_step,
         "replay_attempt": replay_attempt,
         "ack_id": ack_id,
+        "work_class": work_class,
+        "correlation": correlation,
     }

@@ -11,6 +11,7 @@ import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.j
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
+import { emitGatewayChatPostRunMemory } from "../../infra/post-run-memory.js";
 import { normalizeInputProvenance, type InputProvenance } from "../../sessions/input-provenance.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
@@ -1188,6 +1189,11 @@ export const chatHandlers: GatewayRequestHandlers = {
               payload: { runId: clientRunId, status: "ok" as const },
             },
           });
+          emitGatewayChatPostRunMemory({
+            outcome: "success",
+            sessionKey: p.sessionKey,
+            requestId: clientRunId,
+          });
         })
         .catch((err) => {
           const error = errorShape(ErrorCodes.UNAVAILABLE, String(err));
@@ -1210,6 +1216,11 @@ export const chatHandlers: GatewayRequestHandlers = {
             runId: clientRunId,
             sessionKey: rawSessionKey,
             errorMessage: String(err),
+          });
+          emitGatewayChatPostRunMemory({
+            outcome: "error",
+            sessionKey: p.sessionKey,
+            requestId: clientRunId,
           });
         })
         .finally(() => {

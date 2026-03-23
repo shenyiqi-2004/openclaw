@@ -17,6 +17,7 @@ import {
 import type { TypingMode } from "../../config/types.js";
 import { emitAgentEvent } from "../../infra/agent-events.js";
 import { emitDiagnosticEvent, isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
+import { emitReplyAgentPostRunMemory } from "../../infra/post-run-memory.js";
 import { generateSecureUuid } from "../../infra/secure-random.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -367,6 +368,15 @@ export async function runReplyAgent(params: {
       storePath,
       resolvedVerboseLevel,
     });
+
+    if (!isHeartbeat) {
+      emitReplyAgentPostRunMemory({
+        outcome: runOutcome.kind === "success" ? "success" : "final",
+        sessionKey,
+        agentId: followupRun.run.agentId,
+        requestId: followupRun.messageId ?? `${queueKey}:${followupRun.enqueuedAt}`,
+      });
+    }
 
     if (runOutcome.kind === "final") {
       return finalizeWithFollowup(runOutcome.payload, queueKey, runFollowupTurn);

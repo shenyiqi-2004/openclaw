@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { healthCommand } from "../../commands/health.js";
+import { runtimeLayoutStatusCommand } from "../../commands/runtime-layout-status.js";
 import { sessionsCleanupCommand } from "../../commands/sessions-cleanup.js";
 import { sessionsCommand } from "../../commands/sessions.js";
 import { statusCommand } from "../../commands/status.js";
@@ -41,6 +42,16 @@ async function runWithVerboseAndTimeout(
 }
 
 export function registerStatusHealthSessionsCommands(program: Command) {
+  program
+    .command("runtime")
+    .description("Show runtime layout, key paths, and memory interaction status")
+    .option("--json", "Output JSON instead of text", false)
+    .action(async (opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await runtimeLayoutStatusCommand({ json: Boolean(opts.json) }, defaultRuntime);
+      });
+    });
+
   program
     .command("status")
     .description("Show channel health and recent session recipients")

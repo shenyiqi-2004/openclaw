@@ -2,7 +2,15 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import type {
+  ExternalMemoryCorrelationRecord,
+  ExternalMemoryEventRecord,
+  ExternalMemoryRecoveryState,
+  ExternalMemoryTraceRecord,
+  ExternalMemoryTriggerStatus,
+} from "./external-memory-records.js";
 import { describeExternalMemoryRoot } from "./external-memory-root.js";
+import { classifyExternalMemoryEmitWork } from "./runtime-work-model.js";
 
 const memoryLog = createSubsystemLogger("memory");
 const MEMORY_STATE_DIR = "memory";
@@ -14,54 +22,10 @@ const ACKS_JOURNAL_FILE = "acks.jsonl";
 
 type QueueExternalMemoryKernelRunParams = {
   source: string;
-  status: "success" | "final" | "error";
+  status: ExternalMemoryTriggerStatus;
   sessionKey?: string;
   agentId?: string;
   requestId?: string;
-};
-
-type ProcessingState = "queued" | "processing" | "acked" | "failed";
-
-type ExternalMemoryEventRecord = {
-  event_id: string;
-  request_id: string;
-  timestamp: string;
-  source: string;
-  session_key?: string;
-  agent_id?: string;
-  status: "success" | "final" | "error";
-  payload_hash: string;
-  payload_summary: string;
-  attempt_count: number;
-  processing_state: ProcessingState;
-  skip_reason?: string;
-  failure_reason?: string;
-  replayable: boolean;
-  updated_at: string;
-};
-
-type ExternalMemoryRecoveryState = {
-  version: 1;
-  order: string[];
-  events: Record<string, ExternalMemoryEventRecord>;
-};
-
-type ExternalMemoryTraceRecord = {
-  timestamp: string;
-  level: "info" | "warn";
-  action: "event_persisted" | "event_queued" | "root_resolution_failed";
-  event_id?: string;
-  request_id?: string;
-  reason?: string;
-  source?: string;
-  session_key?: string;
-  agent_id?: string;
-  status?: "success" | "final" | "error";
-  memory_root?: string;
-  runtime_root?: string;
-  root_source?: string;
-  deprecated_root?: boolean;
-  attempt_count?: number;
 };
 
 const EMPTY_RECOVERY_STATE: ExternalMemoryRecoveryState = {
@@ -139,6 +103,27 @@ function writeTrace(root: string, record: ExternalMemoryTraceRecord): void {
   appendJsonl(getJournalPaths(root).traces, record);
 }
 
+function buildTraceCorrelation(record: {
+  event_id?: string;
+  request_id?: string;
+  attempt_count?: number;
+  work_class?: string;
+}): ExternalMemoryCorrelationRecord | undefined {
+  if (!record.event_id || !record.request_id) {
+    return undefined;
+  }
+  return {
+    event_id: record.event_id,
+    request_id: record.request_id,
+    worker_task_id:
+      typeof record.attempt_count === "number" && record.attempt_count > 0
+        ? `${record.event_id}:${record.attempt_count}`
+        : undefined,
+    replay_attempt: record.attempt_count,
+    work_class: record.work_class,
+  };
+}
+
 function updateRecoveryEvent(
   root: string,
   eventId: string,
@@ -214,6 +199,8 @@ export function resetExternalMemoryKernelForTest(): void {
   return;
 }
 
+export type { QueueExternalMemoryKernelRunParams };
+
 export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRunParams): boolean {
   const resolution = describeExternalMemoryRoot();
   const configuredRoot = resolution.memoryRoot;
@@ -229,6 +216,7 @@ export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRu
     timestamp: nowIso(),
     level: "info",
     action: "event_persisted",
+    work_class: classifyExternalMemoryEmitWork(),
     event_id: persistedEvent.event_id,
     request_id: persistedEvent.request_id,
     source: persistedEvent.source,
@@ -239,6 +227,12 @@ export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRu
     runtime_root: resolution.runtimeRoot,
     root_source: resolution.source,
     deprecated_root: resolution.deprecated,
+    correlation: buildTraceCorrelation({
+      event_id: persistedEvent.event_id,
+      request_id: persistedEvent.request_id,
+      attempt_count: persistedEvent.attempt_count,
+      work_class: classifyExternalMemoryEmitWork(),
+    }),
   });
 
   if (process.env.OPENCLAW_DISABLE_EXTERNAL_MEMORY === "1") {
@@ -261,6 +255,7 @@ export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRu
       timestamp: nowIso(),
       level: "warn",
       action: "root_resolution_failed",
+      work_class: classifyExternalMemoryEmitWork(),
       event_id: persistedEvent.event_id,
       request_id: persistedEvent.request_id,
       source: persistedEvent.source,
@@ -270,6 +265,12 @@ export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRu
       runtime_root: resolution.runtimeRoot,
       root_source: resolution.source,
       deprecated_root: resolution.deprecated,
+      correlation: buildTraceCorrelation({
+        event_id: persistedEvent.event_id,
+        request_id: persistedEvent.request_id,
+        attempt_count: persistedEvent.attempt_count,
+        work_class: classifyExternalMemoryEmitWork(),
+      }),
     });
     return true;
   }
@@ -278,6 +279,7 @@ export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRu
     timestamp: nowIso(),
     level: "info",
     action: "event_queued",
+    work_class: classifyExternalMemoryEmitWork(),
     event_id: persistedEvent.event_id,
     request_id: persistedEvent.request_id,
     source: persistedEvent.source,
@@ -288,6 +290,12 @@ export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRu
     runtime_root: resolution.runtimeRoot,
     root_source: resolution.source,
     deprecated_root: resolution.deprecated,
+    correlation: buildTraceCorrelation({
+      event_id: persistedEvent.event_id,
+      request_id: persistedEvent.request_id,
+      attempt_count: persistedEvent.attempt_count,
+      work_class: classifyExternalMemoryEmitWork(),
+    }),
   });
   return true;
 }

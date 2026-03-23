@@ -10,6 +10,8 @@ from core.events import (
     EventContext,
     ack_event,
     append_trace,
+    build_correlation,
+    build_worker_task_id,
     get_recovery_event,
     has_ack,
     load_event_context,
@@ -19,6 +21,11 @@ from core.events import (
 )
 from core.executor import build_context, detect_repetition, execute_step
 from core.memory_manager import MemoryManager
+from core.memory_interaction import (
+    get_memory_backend_status,
+    recall_memory_via_backend,
+    store_memory_via_backend,
+)
 from core.orchestration import (
     build_recall_plan,
     build_runtime_signals,
@@ -40,8 +47,10 @@ from core.retriever import (
 )
 from core.router import select_partition
 from core.runtime_paths import describe_memory_root, resolve_memory_root
+from core.runtime_work import classify_sidecar_work
 from core.selfcheck_manager import (
     apply_safe_patch_proposals,
+    describe_patch_policy,
     evaluate_health,
     generate_optimization_suggestions,
     generate_patch_proposals,
@@ -135,6 +144,8 @@ def run_single_cycle(
     runtime_data = manager.load_runtime()
     meta = manager.load_meta()
     event_attempt_count = active_event.attempt_count if active_event is not None else 0
+    work_class = classify_sidecar_work(active_event, worker_mode=active_event is not None)
+    worker_task_id = build_worker_task_id(active_event)
 
     if active_event is not None:
         recovery_event = get_recovery_event(root, active_event.event_id) or {}
@@ -143,6 +154,7 @@ def run_single_cycle(
             root,
             event=active_event,
             action="sidecar_run_started",
+            work_class=work_class,
             attempt_count=event_attempt_count,
             replay_attempt=event_attempt_count,
         )
@@ -168,6 +180,8 @@ def run_single_cycle(
                 root,
                 event=active_event,
                 action="sidecar_duplicate_noop",
+                work_class=work_class,
+                worker_task_id=worker_task_id,
                 attempt_count=event_attempt_count,
                 replay_attempt=event_attempt_count,
                 ack_id=ack_record.get("ack_id", ""),
@@ -190,7 +204,8 @@ def run_single_cycle(
     )
     initial_partition = select_partition(query_text)
     backend, backend_status = resolve_memory_backend(root, manager, initial_partition)
-    backend_stats = backend.get_memory_stats()
+    backend_snapshot = get_memory_backend_status(backend, backend_status)
+    backend_stats = backend_snapshot["stats"]
     use_local_knowledge = backend_status.name == "json_snapshot"
     partition = initial_partition if use_local_knowledge else "backend-managed"
     partition_data = manager.load_partition(partition) if use_local_knowledge else {"items": [], "index": {}}
@@ -250,22 +265,26 @@ def run_single_cycle(
         elif recall_plan["requested"]:
             recall_requested = True
             recall_reason = str(recall_plan["reason"])
-            retrieved_items = backend.recall_memory(
+            recall_result = recall_memory_via_backend(
+                backend,
                 query=query_text,
                 scope={"step_count": int(working.get("step_count", 0)), "partition": partition},
                 limit=int(recall_plan["limit"]),
             )
+            retrieved_items = recall_result["items"]
             retrieval_used = True
         else:
             recall_reason = str(recall_plan["reason"])
     elif recall_plan["requested"]:
         recall_requested = True
         recall_reason = str(recall_plan["reason"])
-        retrieved_items = backend.recall_memory(
+        recall_result = recall_memory_via_backend(
+            backend,
             query=query_text,
             scope={"step_count": int(working.get("step_count", 0)), "partition": partition},
             limit=int(recall_plan["limit"]),
         )
+        retrieved_items = recall_result["items"]
         if not retrieved_items:
             discarded_results.append({"reason": "backend-returned-no-memories", "count": "0"})
     else:
@@ -302,7 +321,8 @@ def run_single_cycle(
     write_result = {"stored": False, "reason": "no-new-fact"}
     if result.get("new_fact") and allow_memory_write:
         _append_if_new(manager, summary, "facts", result["new_fact"])
-        write_result = backend.store_memory(
+        write_result = store_memory_via_backend(
+            backend,
             text=result["new_fact"],
             metadata={
                 "tags": [initial_partition, str(working.get("focus", "")), compact_step_label(next_step)],
@@ -347,6 +367,7 @@ def run_single_cycle(
     proposals: list[dict] = []
     applied_patches: list[dict] = []
     patch_apply_enabled_flag = patch_apply_enabled(working)
+    patch_policy = describe_patch_policy(working)
     patch_apply_attempted = False
     patch_applied = False
     patch_failure_reason = ""
@@ -380,6 +401,10 @@ def run_single_cycle(
                 root,
                 event=active_event,
                 action="sidecar_patch_proposals",
+                work_class=work_class,
+                dangerous_action=patch_policy.get("dangerous_action", ""),
+                patch_policy_source=patch_policy.get("source", ""),
+                manual_apply_required=patch_policy.get("manual_apply_required", True),
                 proposal_count=len(proposals),
                 proposals=proposals,
                 replay_attempt=event_attempt_count,
@@ -391,11 +416,16 @@ def run_single_cycle(
                 "applied": False,
                 "applied_patches": [],
                 "reason": "patch-apply-skipped" if proposals else "",
+                "policy": patch_policy,
+                "dangerous_action": patch_policy.get("dangerous_action", ""),
+                "manual_apply_required": patch_policy.get("manual_apply_required", True),
+                "proposal_allowed": bool(proposals),
             }
             if skip_evolution
             else apply_safe_patch_proposals(root, proposals, working)
         )
         patch_apply_enabled_flag = bool(apply_result.get("enabled", patch_apply_enabled_flag))
+        patch_policy = dict(apply_result.get("policy", patch_policy))
         patch_apply_attempted = bool(apply_result.get("attempted", False))
         patch_applied = bool(apply_result.get("applied", False))
         applied_patches = list(apply_result.get("applied_patches", []))
@@ -405,6 +435,13 @@ def run_single_cycle(
                 root,
                 event=active_event,
                 action="sidecar_patch_apply",
+                work_class=work_class,
+                dangerous_action=str(apply_result.get("dangerous_action", patch_policy.get("dangerous_action", ""))),
+                patch_policy_source=str(patch_policy.get("source", "")),
+                manual_apply_required=bool(
+                    apply_result.get("manual_apply_required", patch_policy.get("manual_apply_required", True))
+                ),
+                proposal_allowed=bool(apply_result.get("proposal_allowed", bool(proposals))),
                 enabled=patch_apply_enabled_flag,
                 attempted=patch_apply_attempted,
                 applied=patch_applied,
@@ -477,6 +514,15 @@ def run_single_cycle(
         "replayed": active_event.replayed if active_event is not None else False,
         "replay_attempt": event_attempt_count,
         "event_attempt_count": event_attempt_count,
+        "work_class": work_class,
+        "worker_task_id": worker_task_id,
+        "correlation": build_correlation(
+            active_event,
+            runtime_step=int(working["step_count"]),
+            work_class=work_class,
+            worker_task_id=worker_task_id,
+            replay_attempt=event_attempt_count,
+        ),
         "timestamp": now_iso(),
     }
     records = runtime_data.setdefault("records", [])
@@ -528,6 +574,7 @@ def run_single_cycle(
             runtime_step=int(working["step_count"]),
             replay_attempt=event_attempt_count,
             ack_id="",
+            work_class=work_class,
         ),
     )
 
@@ -543,6 +590,7 @@ def run_single_cycle(
                 "step": int(working["step_count"]),
                 "memory_backend": backend_status.name,
                 "runtime_step": int(working["step_count"]),
+                "work_class": work_class,
             },
         )
         ack_id = str(ack_record.get("ack_id", ""))
@@ -562,11 +610,14 @@ def run_single_cycle(
         )
         runtime_data["records"][-1]["ack_id"] = ack_id
         runtime_data["records"][-1]["ack_outcome"] = ack_outcome
+        runtime_data["records"][-1]["correlation"]["ack_id"] = ack_id
         manager.save_runtime(runtime_data)
         append_trace(
             root,
             event=active_event,
             action="sidecar_ack_written",
+            work_class=work_class,
+            worker_task_id=worker_task_id,
             attempt_count=event_attempt_count,
             replay_attempt=event_attempt_count,
             runtime_step=int(working["step_count"]),

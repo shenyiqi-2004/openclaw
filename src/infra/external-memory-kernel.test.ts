@@ -67,8 +67,16 @@ describe("external memory kernel", () => {
     expect(recovery.events[eventId]?.processing_state).toBe("queued");
     expect(typeof recovery.events[eventId]?.request_id).toBe("string");
 
-    const traces = (await readJsonl(journalPaths.traces)) as Array<{ action?: string }>;
-    expect(traces.some((record) => record.action === "event_queued")).toBe(true);
+    const traces = (await readJsonl(journalPaths.traces)) as Array<{
+      action?: string;
+      event_id?: string;
+      request_id?: string;
+      correlation?: { event_id?: string; request_id?: string };
+    }>;
+    const queuedTrace = traces.find((record) => record.action === "event_queued");
+    expect(queuedTrace).toBeTruthy();
+    expect(queuedTrace?.correlation?.event_id).toBe(queuedTrace?.event_id);
+    expect(queuedTrace?.correlation?.request_id).toBe(queuedTrace?.request_id);
   });
 
   it("keeps a root-missing event replayable for later worker recovery", async () => {
@@ -94,6 +102,12 @@ describe("external memory kernel", () => {
     expect(recovery.events[eventId]?.processing_state).toBe("failed");
     expect(recovery.events[eventId]?.failure_reason).toBe("memory-root-missing");
     expect(recovery.events[eventId]?.replayable).toBe(true);
+    const traces = (await readJsonl(journalPaths.traces)) as Array<{
+      action?: string;
+      correlation?: { event_id?: string; request_id?: string };
+    }>;
+    const failedTrace = traces.find((record) => record.action === "root_resolution_failed");
+    expect(failedTrace?.correlation?.event_id).toBe(eventId);
   });
 
   it("does not enqueue replayable work when external memory is disabled", async () => {

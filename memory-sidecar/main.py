@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 from core.cycle import run_single_cycle
-from core.events import append_trace, load_event_context, update_recovery_event
+from core.events import append_trace, load_event_context, read_recent_correlated_records, update_recovery_event
 from core.runtime_paths import describe_memory_root, resolve_memory_root
 from core.worker import consume_once, print_queue_status, worker_loop
 
@@ -14,6 +15,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--worker", action="store_true", help="Continuously poll and consume queued events")
     parser.add_argument("--queue-status", action="store_true", help="Print queue and root status")
     parser.add_argument("--print-root", action="store_true", help="Print the effective memory root")
+    parser.add_argument(
+        "--trace-view",
+        type=int,
+        nargs="?",
+        const=5,
+        help="Print recent correlated event/ack/trace/runtime records",
+    )
     parser.add_argument("--poll-interval", type=float, default=1.0, help="Worker polling interval in seconds")
     return parser
 
@@ -33,6 +41,11 @@ def main() -> None:
 
     if args.queue_status:
         print_queue_status(base_dir)
+        return
+
+    if args.trace_view is not None:
+        records = read_recent_correlated_records(base_dir, limit=max(1, int(args.trace_view)))
+        print(json.dumps(records, ensure_ascii=False, indent=2))
         return
 
     if args.once:

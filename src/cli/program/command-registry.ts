@@ -182,6 +182,11 @@ const coreEntries: CoreCliEntry[] = [
   {
     commands: [
       {
+        name: "runtime",
+        description: "Show runtime layout, key paths, and memory interaction status",
+        hasSubcommands: false,
+      },
+      {
         name: "status",
         description: "Show channel health and recent session recipients",
         hasSubcommands: false,

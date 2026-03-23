@@ -32,3 +32,20 @@ class RuntimePathsTests(unittest.TestCase):
                 os.environ.pop("OPENCLAW_EXTERNAL_MEMORY_ROOT", None)
             else:
                 os.environ["OPENCLAW_EXTERNAL_MEMORY_ROOT"] = previous
+
+    def test_runtime_root_env_expands_to_memory_sidecar(self) -> None:
+        previous_runtime_root = os.environ.get("OPENCLAW_RUNTIME_ROOT")
+        previous_memory_root = os.environ.pop("OPENCLAW_EXTERNAL_MEMORY_ROOT", None)
+        os.environ["OPENCLAW_RUNTIME_ROOT"] = "/tmp/openclaw-runtime"
+        try:
+            status = describe_memory_root()
+            self.assertEqual(str(status.runtime_root), "/tmp/openclaw-runtime")
+            self.assertEqual(str(status.memory_root), "/tmp/openclaw-runtime/memory-sidecar")
+            self.assertEqual(status.source, "env:OPENCLAW_RUNTIME_ROOT")
+        finally:
+            if previous_runtime_root is None:
+                os.environ.pop("OPENCLAW_RUNTIME_ROOT", None)
+            else:
+                os.environ["OPENCLAW_RUNTIME_ROOT"] = previous_runtime_root
+            if previous_memory_root is not None:
+                os.environ["OPENCLAW_EXTERNAL_MEMORY_ROOT"] = previous_memory_root

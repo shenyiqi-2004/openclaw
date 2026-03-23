@@ -38,6 +38,7 @@ class TraceContractTests(unittest.TestCase):
             runtime_step=12,
             replay_attempt=2,
             ack_id="",
+            work_class="background",
         )
         required = {
             "recall_requested",
@@ -68,6 +69,8 @@ class TraceContractTests(unittest.TestCase):
             "runtime_step",
             "replay_attempt",
             "ack_id",
+            "work_class",
+            "correlation",
         }
         self.assertTrue(required.issubset(payload.keys()))
 

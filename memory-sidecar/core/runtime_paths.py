@@ -34,6 +34,13 @@ def resolve_memory_root(explicit_base: str | Path | None = None) -> Path:
     configured = os.environ.get("OPENCLAW_EXTERNAL_MEMORY_ROOT", "").strip()
     if configured:
         return Path(configured).resolve()
+    configured_runtime_root = os.environ.get("OPENCLAW_RUNTIME_ROOT", "").strip()
+    if configured_runtime_root:
+        return (Path(configured_runtime_root) / "memory-sidecar").resolve()
+    canonical = DEFAULT_MEMORY_ROOT.resolve()
+    if canonical.exists():
+        return canonical
+    # Compatibility fallback for direct package-local execution.
     return Path(__file__).resolve().parents[1]
 
 
@@ -46,12 +53,17 @@ def describe_memory_root(explicit_base: str | Path | None = None) -> MemoryRootS
     runtime_root = resolve_runtime_root()
     memory_root = resolve_memory_root(explicit_base)
     configured = os.environ.get("OPENCLAW_EXTERNAL_MEMORY_ROOT", "").strip()
+    configured_runtime_root = os.environ.get("OPENCLAW_RUNTIME_ROOT", "").strip()
     if explicit_base is not None:
         source = "explicit"
     elif configured:
         source = "env:OPENCLAW_EXTERNAL_MEMORY_ROOT"
+    elif configured_runtime_root:
+        source = "env:OPENCLAW_RUNTIME_ROOT"
+    elif memory_root == DEFAULT_MEMORY_ROOT.resolve():
+        source = "default"
     else:
-        source = "code-default"
+        source = "legacy-code-default"
     deprecated = any(memory_root == path.resolve() for path in DEPRECATED_MEMORY_ROOTS)
     return MemoryRootStatus(
         runtime_root=runtime_root,

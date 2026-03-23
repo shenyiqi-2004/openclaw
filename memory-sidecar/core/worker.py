@@ -7,6 +7,7 @@ from typing import Any
 from core.cycle import run_single_cycle
 from core.events import append_trace, claim_next_event, get_queue_status, mark_event_failed
 from core.runtime_paths import describe_memory_root, resolve_memory_root
+from core.runtime_work import BACKGROUND_WORK
 
 
 def consume_once(base_dir: str | Path | None = None) -> dict[str, Any]:
@@ -36,6 +37,7 @@ def consume_once(base_dir: str | Path | None = None) -> dict[str, Any]:
             event=event,
             action="worker_event_failed",
             level="warn",
+            work_class=BACKGROUND_WORK,
             reason=str(exc),
             replay_attempt=event.attempt_count,
         )
@@ -81,4 +83,5 @@ def print_queue_status(base_dir: str | Path | None = None) -> dict[str, Any]:
     print(f"Recent ack event: {queue_status.get('recent_ack_event_id', '')}")
     print(f"Recent failed event: {queue_status.get('recent_failed_event_id', '')}")
     print(f"Recent trace event: {queue_status.get('recent_trace_event_id', '')}")
+    print(f"Recent worker task: {queue_status.get('recent_worker_task_id', '')}")
     return queue_status
