@@ -1,33 +1,18 @@
-# OS/editor noise
-.DS_Store
-Thumbs.db
-
-# Python
 __pycache__/
-*.pyc
+**/__pycache__/
+*.py[cod]
 
-# Node
-node_modules/
-dist/
-
-# Local secrets / env
-.env
-.env.*
-*.key
-*.pem
-*.p12
-*.pfx
-*.crt
-cookies.json
-
-# VCS
-.git/
-
-# Runtime leftovers
-memory/*.bak
-memory/**/*.bak
-__pycache__/
+memory/acks.jsonl
+memory/commits.jsonl
+memory/events.jsonl
+memory/recovery.json
+memory/traces.jsonl
+memory/*.json
+memory/knowledge/*.json
 docs/*.aux
+docs/*.fdb_latexmk
+docs/*.fls
 docs/*.log
 docs/*.out
 docs/*.toc
+docs/*.xdv

@@ -3,11 +3,37 @@ from __future__ import annotations
 from typing import Any
 
 
-def should_reflect(step_count: int) -> bool:
-    return step_count > 0 and step_count % 3 == 0
+def should_reflect(step_count: int | None = None, signals: dict[str, Any] | None = None) -> bool:
+    if signals:
+        return any(
+            bool(signals.get(name))
+            for name in (
+                "repeated_steps",
+                "contradiction",
+                "consecutive_failures",
+                "rapid_health_drop",
+                "interruption_recovery",
+            )
+        )
+    return bool(step_count and step_count > 0 and step_count % 3 == 0)
 
 
-def generate_reflection_insight(working: dict[str, Any], summary: dict[str, Any]) -> str:
+def generate_reflection_insight(
+    working: dict[str, Any],
+    summary: dict[str, Any],
+    signals: dict[str, Any] | None = None,
+) -> str:
+    if signals:
+        if signals.get("interruption_recovery"):
+            return "Re-anchor on the last stable result before resuming after interruption."
+        if signals.get("rapid_health_drop"):
+            return "Reduce active context and verify assumptions before continuing."
+        if signals.get("consecutive_failures"):
+            return "Switch approach now instead of extending the same failing path."
+        if signals.get("contradiction"):
+            return "Resolve conflicting memory before taking the next action."
+        if signals.get("repeated_steps"):
+            return "Break the local loop by choosing a materially different next step."
     failures = summary.get("failures", [])[-2:]
     if failures:
         return "Simplify sooner after a failure instead of repeating the same approach."

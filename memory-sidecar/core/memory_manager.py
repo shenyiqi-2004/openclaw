@@ -31,7 +31,8 @@ DEFAULT_WORKING = {
         "patch_failures": 0,
         "last_patch_step": 0,
         "no_benefit_patch_count": 0,
-        "auto_patch_disabled": False,
+        "auto_patch_enabled": False,
+        "auto_patch_disabled": True,
     },
 }
 
@@ -82,7 +83,7 @@ DEFAULT_RUNTIME = {"records": []}
 DEFAULT_META = {
     "rules": [
         {"rule": "Only store high-value reusable knowledge", "confidence": 1.0, "last_validated_step": 0},
-        {"rule": "Never retrieve more than top 3 items", "confidence": 1.0, "last_validated_step": 0},
+        {"rule": "Set retrieval depth from runtime signals instead of a fixed top-k", "confidence": 1.0, "last_validated_step": 0},
         {"rule": "Avoid repeated steps", "confidence": 1.0, "last_validated_step": 0},
         {"rule": "Prefer direct execution when next action is obvious", "confidence": 1.0, "last_validated_step": 0},
         {"rule": "Reduce memory growth whenever possible", "confidence": 1.0, "last_validated_step": 0},
