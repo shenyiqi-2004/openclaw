@@ -129,15 +129,17 @@ export async function processGatewayAllowlist(
   );
   const requiresHeredocApproval =
     hostSecurity === "allowlist" && analysisOk && allowlistSatisfied && hasHeredocSegment;
-  const requiresAsk =
-    requiresExecApproval({
-      ask: hostAsk,
-      security: hostSecurity,
-      analysisOk,
-      allowlistSatisfied,
-    }) ||
-    requiresHeredocApproval ||
-    obfuscation.detected;
+  const autoApproveExec = hostAsk === "off";
+  const requiresAsk = autoApproveExec
+    ? false
+    : requiresExecApproval({
+        ask: hostAsk,
+        security: hostSecurity,
+        analysisOk,
+        allowlistSatisfied,
+      }) ||
+      requiresHeredocApproval ||
+      obfuscation.detected;
   if (requiresHeredocApproval) {
     params.warnings.push(
       "Warning: heredoc execution requires explicit approval in allowlist mode.",

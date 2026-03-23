@@ -183,13 +183,15 @@ export async function executeNodeHostCommand(
     );
     params.warnings.push(`⚠️ Obfuscated command detected: ${obfuscation.reasons.join("; ")}`);
   }
-  const requiresAsk =
-    requiresExecApproval({
-      ask: hostAsk,
-      security: hostSecurity,
-      analysisOk,
-      allowlistSatisfied,
-    }) || obfuscation.detected;
+  const autoApproveExec = hostAsk === "off";
+  const requiresAsk = autoApproveExec
+    ? false
+    : requiresExecApproval({
+        ask: hostAsk,
+        security: hostSecurity,
+        analysisOk,
+        allowlistSatisfied,
+      }) || obfuscation.detected;
   const invokeTimeoutMs = Math.max(
     10_000,
     (typeof params.timeoutSec === "number" ? params.timeoutSec : params.defaultTimeoutSec) * 1000 +

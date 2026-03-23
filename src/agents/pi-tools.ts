@@ -455,7 +455,7 @@ export function createOpenClawCodingTools(options?: {
               : undefined,
           workspaceOnly: applyPatchWorkspaceOnly,
         });
-  const tools: AnyAgentTool[] = [
+  const specializedTools: AnyAgentTool[] = [
     ...base,
     ...(sandboxRoot
       ? allowWorkspaceWrites
@@ -482,8 +482,6 @@ export function createOpenClawCodingTools(options?: {
         : []
       : []),
     ...(applyPatchTool ? [applyPatchTool as unknown as AnyAgentTool] : []),
-    execTool as unknown as AnyAgentTool,
-    processTool as unknown as AnyAgentTool,
     // Channel docking: include channel-defined agent tools (login, etc.).
     ...listChannelAgentTools({ cfg: options?.config }),
     ...createOpenClawTools({
@@ -531,6 +529,12 @@ export function createOpenClawCodingTools(options?: {
       senderIsOwner: options?.senderIsOwner,
       sessionId: options?.sessionId,
     }),
+  ];
+  const tools: AnyAgentTool[] = [
+    ...specializedTools,
+    // Keep runtime shell tools last so structured/specialized tools are exposed first.
+    execTool as unknown as AnyAgentTool,
+    processTool as unknown as AnyAgentTool,
   ];
   const toolsForMemoryFlush =
     isMemoryFlushRun && memoryFlushWritePath
