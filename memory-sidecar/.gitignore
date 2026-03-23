@@ -7,3 +7,12 @@ memory/commits.jsonl
 memory/events.jsonl
 memory/recovery.json
 memory/traces.jsonl
+memory/*.json
+memory/knowledge/*.json
+docs/*.aux
+docs/*.fdb_latexmk
+docs/*.fls
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.xdv

@@ -25,20 +25,21 @@ It is not the canonical long-term memory engine when `memory-lancedb-pro` is ava
 
 ## Execution model
 
-The sidecar remains a single-cycle Python kernel:
+The sidecar remains a single-cycle Python kernel, but request-side code only emits durable events.
 
-1. load operational snapshots
-2. load event context if present
-3. short-circuit duplicate events by `event_id`
-4. detect backend availability
-5. derive runtime signals from working state, runtime history, selfcheck state, and replay status
-6. choose mode: `normal`, `stability`, or `convergence`
-7. decide whether recall is needed and why
-8. call the canonical backend when recall or store is allowed
-9. run one execution step
-10. trigger reflection, selfcheck, and local cleanup from signals instead of fixed intervals
-11. append runtime and trace records
-12. write ack for committed events
+1. request-side runtime emits a durable event
+2. worker claims one queued or replayable event
+3. sidecar loads operational snapshots
+4. sidecar loads event context if present
+5. sidecar short-circuits duplicate events by `event_id`
+6. sidecar detects backend availability
+7. sidecar derives runtime signals from working state, runtime history, selfcheck state, and replay status
+8. sidecar chooses mode: `normal`, `stability`, or `convergence`
+9. sidecar decides whether recall is needed and why
+10. sidecar calls the canonical backend when recall or store is allowed
+11. sidecar runs one execution step
+12. sidecar triggers reflection, selfcheck, and local cleanup from signals instead of fixed intervals
+13. sidecar appends runtime, ack, commit, and trace records
 
 ## Hard rules
 
@@ -47,8 +48,17 @@ The sidecar remains a single-cycle Python kernel:
 - Keep sidecar small and explicit.
 - Keep traces append-only.
 - Keep event handling idempotent.
+- Keep request-side code limited to durable emit; do not run full memory cycles inline.
 - Automatic patch apply is off by default.
 - Patch apply requires explicit enablement with `OPENCLAW_ENABLE_AUTO_PATCH=1` or `working.evolution_budget.auto_patch_enabled=true`.
+
+## CLI modes
+
+- `python3 main.py`: run one direct single-cycle execution
+- `python3 main.py --once`: consume exactly one queued event
+- `python3 main.py --worker`: poll and consume queued events
+- `python3 main.py --queue-status`: print queue and root status
+- `python3 main.py --print-root`: print the effective runtime and memory roots
 
 ## Local fallback
 

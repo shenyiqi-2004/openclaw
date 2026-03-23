@@ -8,6 +8,13 @@ from typing import Any
 
 from core.utils import clamp, now_iso
 
+PATCH_FILE_SETTING_ALLOWLIST = {
+    ("core/retriever.py", "EARLY_RETURN_SCORE"),
+    ("core/cleaner.py", "STALE_REMOVE_STEPS"),
+    ("core/strategy_manager.py", "FORCE_NEW_PENALTY"),
+    ("core/executor.py", "REPETITION_LIMIT"),
+}
+
 
 def _read_numeric_setting(base_dir: str | Path, target_file: str, setting: str) -> float | int | None:
     file_path = Path(base_dir) / target_file
@@ -214,13 +221,7 @@ def apply_safe_patch_proposals(
         return {"enabled": True, "attempted": False, "applied": False, "applied_patches": [], "reason": "patch-failures-exceeded"}
 
     proposal = proposals[0]
-    allowlist = {
-        ("core/retriever.py", "EARLY_RETURN_SCORE"),
-        ("core/cleaner.py", "STALE_REMOVE_STEPS"),
-        ("core/strategy_manager.py", "FORCE_NEW_PENALTY"),
-        ("core/executor.py", "REPETITION_LIMIT"),
-    }
-    if (proposal.get("target_file"), proposal.get("setting")) not in allowlist:
+    if (proposal.get("target_file"), proposal.get("setting")) not in PATCH_FILE_SETTING_ALLOWLIST:
         return {"enabled": True, "attempted": False, "applied": False, "applied_patches": [], "reason": "proposal-not-allowlisted"}
 
     file_path = Path(base_dir) / str(proposal["target_file"])

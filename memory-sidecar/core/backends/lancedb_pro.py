@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from core.backends.base import BackendStatus
+from core.runtime_paths import resolve_runtime_config_path, resolve_runtime_root
 
 
 class LanceDbProMemoryBackend:
@@ -17,11 +18,14 @@ class LanceDbProMemoryBackend:
         bridge_script_path: str | Path | None = None,
     ) -> None:
         self.base_dir = Path(base_dir)
-        self.runtime_config_path = Path(runtime_config_path) if runtime_config_path else Path("/home/park/openclaw/.openclaw/openclaw.json")
+        runtime_root = resolve_runtime_root()
+        self.runtime_config_path = (
+            Path(runtime_config_path) if runtime_config_path else resolve_runtime_config_path(runtime_root)
+        )
         self.bridge_script_path = (
             Path(bridge_script_path)
             if bridge_script_path
-            else Path("/home/park/openclaw/src/infra/memory-lancedb-pro-bridge.ts")
+            else runtime_root / "src" / "infra" / "memory-lancedb-pro-bridge.ts"
         )
         self.node_bin = shutil.which("node")
         self._status = self._detect_status()
@@ -105,6 +109,9 @@ class LanceDbProMemoryBackend:
     def status(self) -> BackendStatus:
         return self._status
 
+    def get_backend_identity(self) -> dict[str, object]:
+        return self._status.to_dict()
+
     def _run_bridge(self, command: str, payload: dict[str, Any]) -> dict[str, Any]:
         if self._status.mode != "bridge" or not self.node_bin:
             return {"ok": False, "reason": "bridge-not-configured"}
@@ -187,6 +194,9 @@ class LanceDbProMemoryBackend:
             "backend": "memory_lancedb_pro",
             "reason": str(response.get("reason", "")),
         }
+
+    def delete_memory(self, *, memory_id: str) -> dict:
+        return self.forget_memory(memory_id=memory_id)
 
     def get_memory_stats(self) -> dict:
         response = self._run_bridge("stats", {})

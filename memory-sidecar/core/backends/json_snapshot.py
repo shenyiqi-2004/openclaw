@@ -28,6 +28,9 @@ class JsonSnapshotMemoryBackend:
         self.manager.save_partition(self.partition, partition_data)
         return items
 
+    def get_backend_identity(self) -> dict:
+        return self.status().to_dict()
+
     def store_memory(self, *, text: str, metadata: dict) -> dict:
         stored = self.manager.add_knowledge(
             self.partition,
@@ -44,6 +47,9 @@ class JsonSnapshotMemoryBackend:
 
     def forget_memory(self, *, memory_id: str) -> dict:
         return {"deleted": False, "backend": "json_snapshot", "reason": "not-supported"}
+
+    def delete_memory(self, *, memory_id: str) -> dict:
+        return self.forget_memory(memory_id=memory_id)
 
     def get_memory_stats(self) -> dict:
         total = 0

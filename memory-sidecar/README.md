@@ -51,18 +51,33 @@ Current long-term operations behind the adapter:
 
 `LanceDbProMemoryBackend` uses the local OpenClaw bridge instead of re-implementing retrieval logic in Python.
 
+## Root resolution
+
+The canonical defaults are:
+
+- runtime root: `/home/park/openclaw`
+- memory root: `/home/park/openclaw/memory-sidecar`
+
+Resolution order:
+
+1. `OPENCLAW_EXTERNAL_MEMORY_ROOT`
+2. `OPENCLAW_RUNTIME_ROOT + "/memory-sidecar"`
+3. code default
+
+Old paths such as `D:\openclaw` and `/mnt/d/openclaw` are deprecated only.
+
 ## Transaction flow
 
 Each trigger follows this flow:
 
 1. OpenClaw persists an event to `memory/events.jsonl`
 2. recovery metadata is updated in `memory/recovery.json`
-3. if launch is skipped, the event is retained for replay
-4. if launch proceeds, the child receives `OPENCLAW_MEMORY_EVENT_ID`
+3. request-side code stops there; it does not run a full sidecar cycle inline
+4. a sidecar worker later claims one queued event
 5. sidecar processes one event
 6. sidecar appends runtime and trace records
 7. sidecar writes `memory/acks.jsonl`
-8. launcher writes `memory/commits.jsonl`
+8. sidecar writes `memory/commits.jsonl`
 
 ## Replay and recovery
 
@@ -72,7 +87,7 @@ Replayable events include:
 - failed events
 - zero-exit runs without ack
 
-On the next launch opportunity, the launcher replays the oldest replayable event first.
+On the next worker opportunity, the oldest replayable event is claimed first.
 
 Sidecar is idempotent by `event_id`:
 
@@ -113,8 +128,10 @@ Append-only traces are written to `memory/traces.jsonl`.
 Important fields include:
 
 - `event_id`
+- `request_id`
 - `source`
 - `replayed`
+- `replay_attempt`
 - `recall_requested`
 - `recall_reason`
 - `recall_query`
@@ -136,6 +153,8 @@ Important fields include:
 - `patch_apply_attempted`
 - `patch_applied`
 - `patch_failure_reason`
+- `runtime_step`
+- `ack_id`
 - `outcome`
 - `failure_reason`
 
@@ -180,3 +199,13 @@ Durable transaction files:
 - `memory/commits.jsonl`
 - `memory/traces.jsonl`
 - `memory/recovery.json`
+
+## Worker CLI
+
+Sidecar now exposes these entrypoints:
+
+- `python3 main.py`
+- `python3 main.py --once`
+- `python3 main.py --worker`
+- `python3 main.py --queue-status`
+- `python3 main.py --print-root`

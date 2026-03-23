@@ -53,6 +53,7 @@ class LanceDbProBackendTests(unittest.TestCase):
             self.assertEqual(status.name, "json_snapshot")
             self.assertEqual(status.mode, "fallback")
             self.assertEqual(backend.status().name, "json_snapshot")
+            self.assertEqual(backend.get_backend_identity()["name"], "json_snapshot")
 
 
 if __name__ == "__main__":

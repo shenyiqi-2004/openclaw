@@ -1,0 +1,258 @@
+\documentclass[11pt,a4paper,oneside,openany]{book}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyvrb}
+\usepackage{titlesec}
+\let\cleardoublepage\clearpage
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,pdftitle={OpenClaw Memory Sidecar Full Work Manual},pdfauthor={OpenAI Codex}}
+\setlist[itemize]{nosep,leftmargin=1.8em}
+\setlist[enumerate]{nosep,leftmargin=1.8em}
+\titleformat{\chapter}{\Huge\bfseries}{Chapter \thechapter}{1em}{}
+\title{OpenClaw Memory Sidecar Full Work Manual\\Clean Canonical Edition}
+\author{Current Integrated Build}
+\date{2026-03-23}
+\begin{document}
+\frontmatter
+\maketitle
+\tableofcontents
+\chapter*{Version And Source Of Truth}
+\addcontentsline{toc}{chapter}{Version And Source Of Truth}
+\begin{longtable}{p{0.30\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{Field} & \textbf{Value}\\
+\midrule
+\endhead
+Version & v2026-03-23\\
+Last Verified & 2026-03-23\\
+Canonical Memory Root & \texttt{/home/park/openclaw/memory-sidecar}\\
+Canonical Runtime Root & \texttt{/home/park/openclaw}\\
+Canonical Manual & \texttt{/home/park/openclaw/memory-sidecar/docs/openclaw\_full\_work\_manual.tex}\\
+Source Of Truth & Current repository files plus this manual. If they conflict, current repository files win.\\
+Historical Paths & \texttt{D:\textbackslash openclaw} and \texttt{/mnt/d/openclaw} are historical only.\\
+\bottomrule
+\end{longtable}
+This edition exists to make review, maintenance, handoff, and debugging converge on one path definition and one architecture description.
+\mainmatter
+\chapter{System Summary}
+The current design is intentionally split into two layers:
+\begin{itemize}
+  \item \textbf{memory-sidecar}: controller, observability, recovery, runtime state snapshots.
+  \item \textbf{memory-lancedb-pro}: canonical long-term memory engine.
+\end{itemize}
+The old state where sidecar also behaved like a competing retrieval engine is no longer the intended architecture.
+\chapter{Architecture Boundary}
+\section{What Sidecar Owns}
+\begin{itemize}
+  \item event durability
+  \item commit, ack, replay
+  \item mode switching
+  \item health, pressure, noise, complexity tracking
+  \item reflection and self-check triggering
+  \item runtime traceability
+  \item operational snapshots such as working, summary, strategy, reflection, selfcheck, and runtime
+\end{itemize}
+\section{What memory-lancedb-pro Owns}
+\begin{itemize}
+  \item long-term recall
+  \item long-term store, update, forget
+  \item hybrid retrieval
+  \item rerank
+  \item scope isolation
+  \item lifecycle and decay on the long-term memory side
+\end{itemize}
+\section{Explicit Non-Goals For Sidecar}
+Sidecar should not rebuild a second long-term memory engine when \texttt{memory-lancedb-pro} is available.
+\chapter{Canonical Paths And Files}
+\begin{longtable}{p{0.34\textwidth}p{0.56\textwidth}}
+\toprule
+\textbf{Path} & \textbf{Responsibility}\\
+\midrule
+\endhead
+\texttt{/home/park/openclaw} & OpenClaw runtime repository root\\
+\texttt{/home/park/openclaw/memory-sidecar} & canonical memory root\\
+\texttt{/home/park/openclaw/memory-sidecar/main.py} & single-cycle sidecar entry\\
+\texttt{/home/park/openclaw/memory-sidecar/core/backends/} & backend adapter layer\\
+\texttt{/home/park/openclaw/memory-sidecar/core/events.py} & event and ack handling\\
+\texttt{/home/park/openclaw/memory-sidecar/core/orchestration.py} & signal-driven orchestration\\
+\texttt{/home/park/openclaw/src/infra/external-memory-kernel.ts} & durable launcher on the runtime side\\
+\texttt{/home/park/openclaw/src/infra/memory-lancedb-pro-bridge.ts} & thin bridge to the long-term memory plugin\\
+\texttt{/home/park/openclaw/extensions/memory-lancedb-pro/} & long-term memory plugin implementation\\
+\bottomrule
+\end{longtable}
+\chapter{Operational Snapshots And Durable Files}
+\section{Operational Snapshots}
+\begin{longtable}{p{0.30\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{File} & \textbf{Purpose}\\
+\midrule
+\endhead
+\texttt{memory/working.json} & current task and recent step state\\
+\texttt{memory/summary.json} & high-value summaries\\
+\texttt{memory/strategy.json} & strategy state and counters\\
+\texttt{memory/reflection.json} & reflection records\\
+\texttt{memory/selfcheck.json} & health and safety records\\
+\texttt{memory/runtime.json} & per-run snapshots and latest outcomes\\
+\bottomrule
+\end{longtable}
+\section{Durable Files}
+\begin{longtable}{p{0.30\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{File} & \textbf{Purpose}\\
+\midrule
+\endhead
+\texttt{memory/events.jsonl} & append-only event journal\\
+\texttt{memory/acks.jsonl} & sidecar acknowledgements and duplicate no-op acknowledgements\\
+\texttt{memory/commits.jsonl} & launcher-side commit records\\
+\texttt{memory/traces.jsonl} & append-only machine-readable traces\\
+\texttt{memory/recovery.json} & replay and recovery metadata\\
+\bottomrule
+\end{longtable}
+\chapter{Root Resolution}
+\begin{enumerate}
+  \item Canonical runtime root: \texttt{/home/park/openclaw}
+  \item Canonical memory root: \texttt{/home/park/openclaw/memory-sidecar}
+  \item Resolution order: \texttt{OPENCLAW\_EXTERNAL\_MEMORY\_ROOT} -> \texttt{OPENCLAW\_RUNTIME\_ROOT + /memory-sidecar} -> code default
+  \item Historical paths such as \texttt{D:\textbackslash openclaw} and \texttt{/mnt/d/openclaw} are deprecated only
+\end{enumerate}
+\chapter{Transactional Flow}
+\begin{enumerate}
+  \item A runtime trigger persists an event before doing any sidecar work.
+  \item Request-side runtime stops after durable emit; it does not run a full memory cycle inline.
+  \item A worker later claims one queued or replayable event.
+  \item Sidecar checks whether that event was already acknowledged or already applied.
+  \item If already applied, sidecar performs an idempotent duplicate no-op and writes the proper acknowledgement.
+  \item If not yet applied, sidecar runs one signal-driven control cycle and then writes acknowledgement and commit records.
+\end{enumerate}
+\chapter{Replay And Recovery}
+Failed and replayable events remain durable. The next worker pass may replay them. If effects already happened but ack was missing, sidecar detects that by event id and runtime state, then finalizes with a duplicate no-op acknowledgement instead of repeating memory side effects.
+\chapter{Signal-Driven Orchestration}
+The old rigid loop used fixed partition selection, fixed top-k, and fixed cadence for reflection and self-check. The current controller is signal-driven.
+\section{Representative Signals}
+\begin{itemize}
+  \item repeated\_steps
+  \item contradiction
+  \item consecutive\_failures
+  \item rapid\_health\_drop
+  \item interruption\_recovery
+  \item low\_health
+  \item high\_pressure
+  \item high\_noise
+  \item abnormal\_growth
+  \item low\_yield\_recall
+\end{itemize}
+\section{Controller Decisions}
+The sidecar decides when to recall, why to recall, whether to store or block a write, when to reflect, when to run self-check, when to compact local operational state, and when to switch between normal, stability, and convergence.
+\chapter{Traceability}
+Every run should emit an append-only JSONL trace. The trace is expected to include at least:
+\begin{itemize}
+  \item event id
+  \item request id
+  \item trigger source
+  \item replay flag
+  \item replay attempt
+  \item whether recall was requested
+  \item recall reason
+  \item backend used
+  \item recall query
+  \item returned memory count
+  \item selected memory ids
+  \item discard reasons
+  \item health, pressure, noise, complexity
+  \item current mode
+  \item selected strategy
+  \item reflection, self-check, and cleanup decisions
+  \item whether memory write was allowed
+  \item patch proposal and patch apply outcome
+  \item runtime step
+  \item ack id
+  \item final outcome and failure reason
+\end{itemize}
+\begin{Verbatim}[fontsize=\small]
+{
+  "action": "sidecar_orchestration_trace",
+  "event_id": "evt-...",
+  "trigger_source": "chat.send",
+  "replayed": false,
+  "recall_requested": true,
+  "recall_reason": "signal-driven:repeated_steps",
+  "memory_backend": "memory_lancedb_pro",
+  "returned_memory_count": 3,
+  "current_mode": "stability",
+  "reflection_triggered": true,
+  "selfcheck_triggered": true,
+  "memory_write_allowed": true,
+  "patch_proposal_generated": false,
+  "patch_applied": false,
+  "outcome": "success",
+  "failure_reason": ""
+}
+\end{Verbatim}
+\chapter{Patch Safety}
+Patch proposal may remain available, but automatic patch apply must remain off by default. Apply is only allowed behind explicit configuration. Proposal, apply, and failure must all be traced. Failure must not be silent.
+\chapter{Quick Start}
+\begin{enumerate}
+  \item Enter \texttt{/home/park/openclaw}.
+  \item Confirm that \texttt{/home/park/openclaw/memory-sidecar} exists.
+  \item Start the runtime or emit a real chat or agent trigger.
+  \item Run \texttt{python3 main.py --worker} or \texttt{python3 main.py --once}.
+  \item Inspect \texttt{memory/events.jsonl}, \texttt{memory/acks.jsonl}, and \texttt{memory/commits.jsonl}.
+  \item Inspect \texttt{memory/runtime.json} and \texttt{memory/traces.jsonl}.
+\end{enumerate}
+\chapter{Worker CLI}
+\begin{itemize}
+  \item \texttt{python3 main.py}
+  \item \texttt{python3 main.py --once}
+  \item \texttt{python3 main.py --worker}
+  \item \texttt{python3 main.py --queue-status}
+  \item \texttt{python3 main.py --print-root}
+\end{itemize}
+\chapter{Validation Status}
+As of 2026-03-23, the implementation has been validated with Python unit tests, TypeScript unit tests for the launcher, direct sidecar execution, and launcher-driven smoke tests. The durable event flow, replay path, canonical long-term backend routing, and signal-driven orchestration all passed local validation.
+\chapter{Migration Notes}
+\begin{itemize}
+  \item \texttt{knowledge/*.json} is no longer the sole source of truth for long-term memory.
+  \item Local JSON snapshots remain, but only as operational state.
+  \item Durable event, ack, commit, trace, and recovery files are now part of normal operation.
+  \item Fixed-step orchestration has been replaced by signal-driven orchestration.
+\end{itemize}
+\chapter{Common Failures}
+\begin{longtable}{p{0.24\textwidth}p{0.28\textwidth}p{0.36\textwidth}}
+\toprule
+\textbf{Problem} & \textbf{Likely Cause} & \textbf{Response}\\
+\midrule
+\endhead
+Sidecar does not update & path drift or launcher did not advance & verify canonical memory root, then inspect event, ack, and commit files\\
+Events do not commit & child exit, missing ack, or duplicate replay edge & inspect traces, acknowledgements, and runtime state\\
+Trace fields look incomplete & runtime still using an old build & restart the runtime and verify the active code path\\
+Backend did not switch to lancedb-pro & plugin or bridge unavailable & inspect plugin slot, bridge path, and runtime config\\
+Patch did not auto-apply & auto apply is disabled by default & enable only through explicit configuration\\
+\bottomrule
+\end{longtable}
+\chapter{Tradeoffs And Deferred Items}
+\section{Main Tradeoffs}
+\begin{itemize}
+  \item thin bridge instead of a second memory engine in Python
+  \item child-process model instead of a heavyweight daemon
+  \item JSON fallback retained for compatibility but not treated as canonical when lancedb-pro is present
+  \item append-only JSONL traces for readability and auditability
+\end{itemize}
+\section{Deliberately Deferred}
+\begin{itemize}
+  \item richer selected-memory and discard-reason explanations
+  \item more advanced replay prioritization
+  \item dedicated trace dashboard
+  \item broader patch allowlist governance
+\end{itemize}
+\backmatter
+\chapter*{Conclusion}
+\addcontentsline{toc}{chapter}{Conclusion}
+The current system is better when three facts stay fixed: the canonical memory root is \texttt{/home/park/openclaw/memory-sidecar}, the canonical runtime root is \texttt{/home/park/openclaw}, and the canonical long-term memory engine is \texttt{memory-lancedb-pro}. Once those three facts are stable, maintenance, review, debugging, and handoff all become simpler.
+\end{document}

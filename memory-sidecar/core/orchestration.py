@@ -2,29 +2,31 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.signals import HealthSnapshot, SignalSchema
+
 
 def _recent_records(runtime_data: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
     return [record for record in runtime_data.get("records", []) if isinstance(record, dict)][-limit:]
 
 
-def _recent_health(selfcheck_data: dict[str, Any], working: dict[str, Any]) -> dict[str, float]:
+def _recent_health(selfcheck_data: dict[str, Any], working: dict[str, Any]) -> HealthSnapshot:
     evaluations = [item for item in selfcheck_data.get("evaluations", []) if isinstance(item, dict)]
     if evaluations:
         latest = evaluations[-1]
-        return {
-            "health": float(latest.get("health", working.get("last_health", 1.0))),
-            "delta": float(latest.get("delta", 0.0)),
-            "pressure": float(latest.get("pressure", 0.0)),
-            "noise": float(latest.get("noise", 0.0)),
-            "complexity": float(latest.get("complexity", 0.0)),
-        }
-    return {
-        "health": float(working.get("last_health", 1.0)),
-        "delta": 0.0,
-        "pressure": 0.0,
-        "noise": 0.0,
-        "complexity": 0.0,
-    }
+        return HealthSnapshot(
+            health=float(latest.get("health", working.get("last_health", 1.0))),
+            delta=float(latest.get("delta", 0.0)),
+            pressure=float(latest.get("pressure", 0.0)),
+            noise=float(latest.get("noise", 0.0)),
+            complexity=float(latest.get("complexity", 0.0)),
+        )
+    return HealthSnapshot(
+        health=float(working.get("last_health", 1.0)),
+        delta=0.0,
+        pressure=0.0,
+        noise=0.0,
+        complexity=0.0,
+    )
 
 
 def build_runtime_signals(
@@ -37,7 +39,7 @@ def build_runtime_signals(
     backend_status: Any,
     backend_stats: dict[str, Any],
     query_text: str,
-) -> dict[str, Any]:
+) -> SignalSchema:
     recent_records = _recent_records(runtime_data, 6)
     recent_history = [str(item) for item in working.get("step_history", [])[-4:] if str(item).strip()]
     recent_failures = [str(item) for item in summary.get("failures", [])[-3:] if str(item).strip()]
@@ -49,12 +51,11 @@ def build_runtime_signals(
         for token in ("contradict", "conflict", "inconsistent", "undo", "revert")
     )
     consecutive_failures = sum(1 for record in recent_records[-3:] if not bool(record.get("result_success", True))) >= 2
-    rapid_health_drop = current_health["delta"] <= -0.05
+    rapid_health_drop = current_health.delta <= -0.05
     interruption_recovery = bool(event.replayed) if event is not None else False
-
-    low_health = current_health["health"] < 0.8
-    high_pressure = current_health["pressure"] >= 0.2
-    high_noise = current_health["noise"] >= 0.2
+    low_health = current_health.health < 0.8
+    high_pressure = current_health.pressure >= 0.2
+    high_noise = current_health.noise >= 0.2
     low_yield_recall = sum(
         1
         for record in recent_records[-3:]
@@ -69,46 +70,43 @@ def build_runtime_signals(
         knowledge_growth = int(latest.get("knowledge_count", 0)) - int(previous.get("knowledge_count", 0))
         abnormal_growth = summary_growth >= 6 or knowledge_growth >= 4
 
-    signals = {
-        "query_present": bool(query_text.strip()),
-        "repeated_steps": repeated_steps,
-        "contradiction": contradiction,
-        "consecutive_failures": consecutive_failures,
-        "rapid_health_drop": rapid_health_drop,
-        "interruption_recovery": interruption_recovery,
-        "low_health": low_health,
-        "high_pressure": high_pressure,
-        "high_noise": high_noise,
-        "abnormal_growth": abnormal_growth,
-        "low_yield_recall": low_yield_recall,
-        "has_recent_memory": bool(working.get("last_result_keys")),
-        "canonical_backend": bool(getattr(backend_status, "canonical", False)),
-        "backend_name": str(getattr(backend_status, "name", "")),
-        "backend_stats": backend_stats,
-        "health": current_health,
-    }
-    reasons = [name for name, value in signals.items() if isinstance(value, bool) and value]
-    signals["active_reasons"] = reasons
-    return signals
+    return SignalSchema(
+        query_present=bool(query_text.strip()),
+        repeated_steps=repeated_steps,
+        contradiction=contradiction,
+        consecutive_failures=consecutive_failures,
+        rapid_health_drop=rapid_health_drop,
+        interruption_recovery=interruption_recovery,
+        low_health=low_health,
+        high_pressure=high_pressure,
+        high_noise=high_noise,
+        abnormal_growth=abnormal_growth,
+        low_yield_recall=low_yield_recall,
+        has_recent_memory=bool(working.get("last_result_keys")),
+        canonical_backend=bool(getattr(backend_status, "canonical", False)),
+        backend_name=str(getattr(backend_status, "name", "")),
+        backend_stats=backend_stats,
+        health=current_health,
+    )
 
 
-def select_mode_from_signals(signals: dict[str, Any], current_mode: str) -> str:
-    if signals["low_health"] and (signals["high_pressure"] or signals["high_noise"] or signals["abnormal_growth"]):
+def select_mode_from_signals(signals: SignalSchema, current_mode: str) -> str:
+    if signals.low_health and (signals.high_pressure or signals.high_noise or signals.abnormal_growth):
         return "convergence"
-    if signals["high_pressure"] and signals["abnormal_growth"]:
+    if signals.high_pressure and signals.abnormal_growth:
         return "convergence"
     if (
-        signals["repeated_steps"]
-        or signals["consecutive_failures"]
-        or signals["rapid_health_drop"]
-        or signals["interruption_recovery"]
-        or signals["low_health"]
+        signals.repeated_steps
+        or signals.consecutive_failures
+        or signals.rapid_health_drop
+        or signals.interruption_recovery
+        or signals.low_health
     ):
         return "stability"
-    if current_mode == "convergence" and not signals["low_health"]:
+    if current_mode == "convergence" and not signals.low_health:
         return "normal"
     if current_mode == "stability" and not (
-        signals["repeated_steps"] or signals["consecutive_failures"] or signals["rapid_health_drop"]
+        signals.repeated_steps or signals.consecutive_failures or signals.rapid_health_drop
     ):
         return "normal"
     return "normal"
@@ -119,7 +117,7 @@ def build_recall_plan(
     query_text: str,
     working: dict[str, Any],
     mode: str,
-    signals: dict[str, Any],
+    signals: SignalSchema,
     retrieval_allowed: bool,
 ) -> dict[str, Any]:
     if not query_text.strip():
@@ -136,12 +134,12 @@ def build_recall_plan(
             "rapid_health_drop",
             "interruption_recovery",
         )
-        if signals.get(name)
+        if signals[name]
     ]
-    should_recall = bool(strong_signals) or not signals.get("has_recent_memory") or mode == "normal"
-    if signals.get("low_yield_recall") and not strong_signals:
+    should_recall = bool(strong_signals) or not signals.has_recent_memory or mode == "normal"
+    if signals.low_yield_recall and not strong_signals:
         return {"requested": False, "reason": "recent-low-yield-recall", "limit": 0}
-    if mode == "convergence" and not strong_signals and signals.get("has_recent_memory"):
+    if mode == "convergence" and not strong_signals and signals.has_recent_memory:
         return {"requested": False, "reason": "convergence-reuse-preferred", "limit": 0}
     if not should_recall:
         return {"requested": False, "reason": "no-recall-signal", "limit": 0}
@@ -160,7 +158,7 @@ def build_recall_plan(
     }
 
 
-def should_run_reflection(signals: dict[str, Any]) -> tuple[bool, str]:
+def should_run_reflection(signals: SignalSchema) -> tuple[bool, str]:
     for name in (
         "repeated_steps",
         "contradiction",
@@ -168,12 +166,12 @@ def should_run_reflection(signals: dict[str, Any]) -> tuple[bool, str]:
         "rapid_health_drop",
         "interruption_recovery",
     ):
-        if signals.get(name):
+        if signals[name]:
             return True, name
     return False, "no-reflection-signal"
 
 
-def should_run_selfcheck(signals: dict[str, Any]) -> tuple[bool, str]:
+def should_run_selfcheck(signals: SignalSchema) -> tuple[bool, str]:
     for name in (
         "low_health",
         "high_pressure",
@@ -183,28 +181,28 @@ def should_run_selfcheck(signals: dict[str, Any]) -> tuple[bool, str]:
         "rapid_health_drop",
         "interruption_recovery",
     ):
-        if signals.get(name):
+        if signals[name]:
             return True, name
     return False, "no-selfcheck-signal"
 
 
-def should_run_cleanup(*, use_local_knowledge: bool, signals: dict[str, Any], needs_cleaning: bool) -> tuple[bool, str]:
+def should_run_cleanup(*, use_local_knowledge: bool, signals: SignalSchema, needs_cleaning: bool) -> tuple[bool, str]:
     if not use_local_knowledge:
         return False, "backend-owned-cleanup"
     if needs_cleaning:
         return True, "local-snapshot-bloat"
     for name in ("abnormal_growth", "high_pressure", "high_noise"):
-        if signals.get(name):
+        if signals[name]:
             return True, name
     return False, "no-cleanup-signal"
 
 
-def should_allow_memory_write(*, mode: str, signals: dict[str, Any]) -> tuple[bool, str]:
+def should_allow_memory_write(*, mode: str, signals: SignalSchema) -> tuple[bool, str]:
     if mode == "convergence":
         return False, "convergence-mode"
-    if signals.get("high_noise"):
+    if signals.high_noise:
         return False, "high-noise"
-    if signals.get("abnormal_growth"):
+    if signals.abnormal_growth:
         return False, "abnormal-growth"
     return True, "write-allowed"
 
@@ -246,6 +244,10 @@ def build_trace_payload(
     failure_reason: str,
     active_signals: list[str],
     memory_backend: str,
+    request_id: str,
+    runtime_step: int,
+    replay_attempt: int,
+    ack_id: str,
 ) -> dict[str, Any]:
     return {
         "recall_requested": recall_requested,
@@ -278,4 +280,8 @@ def build_trace_payload(
         "failure_reason": failure_reason,
         "active_signals": active_signals,
         "memory_backend": memory_backend,
+        "request_id": request_id,
+        "runtime_step": runtime_step,
+        "replay_attempt": replay_attempt,
+        "ack_id": ack_id,
     }

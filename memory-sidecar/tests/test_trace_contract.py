@@ -34,6 +34,10 @@ class TraceContractTests(unittest.TestCase):
             failure_reason="",
             active_signals=["repeated_steps", "low_health"],
             memory_backend="memory_lancedb_pro",
+            request_id="req-1",
+            runtime_step=12,
+            replay_attempt=2,
+            ack_id="",
         )
         required = {
             "recall_requested",
@@ -60,6 +64,10 @@ class TraceContractTests(unittest.TestCase):
             "outcome",
             "failure_reason",
             "memory_backend",
+            "request_id",
+            "runtime_step",
+            "replay_attempt",
+            "ack_id",
         }
         self.assertTrue(required.issubset(payload.keys()))
 

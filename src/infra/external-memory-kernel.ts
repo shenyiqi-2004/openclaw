@@ -1,13 +1,10 @@
-import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { describeExternalMemoryRoot } from "./external-memory-root.js";
 
 const memoryLog = createSubsystemLogger("memory");
-const DEFAULT_MEMORY_ROOT = "/home/park/openclaw/memory-sidecar";
-const DEFAULT_PYTHON = "python3";
-const MIN_RUN_INTERVAL_MS = 2_000;
 const MEMORY_STATE_DIR = "memory";
 const EVENTS_JOURNAL_FILE = "events.jsonl";
 const COMMITS_JOURNAL_FILE = "commits.jsonl";
@@ -20,18 +17,21 @@ type QueueExternalMemoryKernelRunParams = {
   status: "success" | "final" | "error";
   sessionKey?: string;
   agentId?: string;
+  requestId?: string;
 };
 
-type ProcessingState = "pending" | "processing" | "committed" | "failed" | "skipped";
+type ProcessingState = "queued" | "processing" | "acked" | "failed";
 
 type ExternalMemoryEventRecord = {
   event_id: string;
+  request_id: string;
   timestamp: string;
   source: string;
   session_key?: string;
   agent_id?: string;
   status: "success" | "final" | "error";
   payload_hash: string;
+  payload_summary: string;
   attempt_count: number;
   processing_state: ProcessingState;
   skip_reason?: string;
@@ -49,26 +49,19 @@ type ExternalMemoryRecoveryState = {
 type ExternalMemoryTraceRecord = {
   timestamp: string;
   level: "info" | "warn";
-  action:
-    | "event_persisted"
-    | "launch_skipped"
-    | "launch_started"
-    | "launch_error"
-    | "launch_exit"
-    | "commit_written"
-    | "root_resolution_failed";
+  action: "event_persisted" | "event_queued" | "root_resolution_failed";
   event_id?: string;
-  replayed?: boolean;
+  request_id?: string;
   reason?: string;
   source?: string;
   session_key?: string;
   agent_id?: string;
   status?: "success" | "final" | "error";
-  exit_code?: number | null;
   memory_root?: string;
+  runtime_root?: string;
+  root_source?: string;
+  deprecated_root?: boolean;
   attempt_count?: number;
-  stdout_excerpt?: string;
-  stderr_excerpt?: string;
 };
 
 const EMPTY_RECOVERY_STATE: ExternalMemoryRecoveryState = {
@@ -77,15 +70,8 @@ const EMPTY_RECOVERY_STATE: ExternalMemoryRecoveryState = {
   events: {},
 };
 
-let activeRun: Promise<void> | null = null;
-let lastAttemptAt = 0;
-
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function getConfiguredMemoryRoot(): string {
-  return process.env.OPENCLAW_EXTERNAL_MEMORY_ROOT?.trim() || DEFAULT_MEMORY_ROOT;
 }
 
 function getJournalPaths(root: string) {
@@ -186,6 +172,12 @@ function buildPayloadHash(params: QueueExternalMemoryKernelRunParams): string {
     .digest("hex");
 }
 
+function buildPayloadSummary(params: QueueExternalMemoryKernelRunParams): string {
+  return [params.source, params.status, params.sessionKey ?? "", params.agentId ?? ""]
+    .filter((value) => value.length > 0)
+    .join(" | ");
+}
+
 function persistEvent(
   root: string,
   params: QueueExternalMemoryKernelRunParams,
@@ -193,14 +185,16 @@ function persistEvent(
   const timestamp = nowIso();
   const record: ExternalMemoryEventRecord = {
     event_id: randomUUID(),
+    request_id: params.requestId?.trim() || randomUUID(),
     timestamp,
     source: params.source,
     session_key: params.sessionKey,
     agent_id: params.agentId,
     status: params.status,
     payload_hash: buildPayloadHash(params),
+    payload_summary: buildPayloadSummary(params),
     attempt_count: 0,
-    processing_state: "pending",
+    processing_state: "queued",
     replayable: true,
     updated_at: timestamp,
   };
@@ -209,95 +203,7 @@ function persistEvent(
   state.order.push(record.event_id);
   state.events[record.event_id] = record;
   saveRecoveryState(root, state);
-  writeTrace(root, {
-    timestamp,
-    level: "info",
-    action: "event_persisted",
-    event_id: record.event_id,
-    source: record.source,
-    session_key: record.session_key,
-    agent_id: record.agent_id,
-    status: record.status,
-    memory_root: root,
-  });
   return record;
-}
-
-function findReplayableEvent(root: string): ExternalMemoryEventRecord | null {
-  const state = loadRecoveryState(root);
-  for (const eventId of state.order) {
-    const event = state.events[eventId];
-    if (!event) {
-      continue;
-    }
-    if (!event.replayable) {
-      continue;
-    }
-    if (
-      event.processing_state === "pending" ||
-      event.processing_state === "skipped" ||
-      event.processing_state === "failed"
-    ) {
-      return event;
-    }
-  }
-  return null;
-}
-
-function appendCommitRecord(
-  root: string,
-  event: ExternalMemoryEventRecord,
-  outcome: "committed" | "failed",
-): void {
-  appendJsonl(getJournalPaths(root).commits, {
-    timestamp: nowIso(),
-    event_id: event.event_id,
-    source: event.source,
-    session_key: event.session_key,
-    agent_id: event.agent_id,
-    status: event.status,
-    outcome,
-    attempt_count: event.attempt_count,
-  });
-}
-
-function hasAckRecord(root: string, eventId: string): boolean {
-  const { acks } = getJournalPaths(root);
-  if (!fs.existsSync(acks)) {
-    return false;
-  }
-  try {
-    const raw = fs.readFileSync(acks, "utf8");
-    const lines = raw.split("\n");
-    for (let index = lines.length - 1; index >= 0; index -= 1) {
-      const line = lines[index]?.trim();
-      if (!line) {
-        continue;
-      }
-      const parsed = JSON.parse(line) as Record<string, unknown>;
-      if (parsed.event_id === eventId && parsed.ack === true) {
-        return true;
-      }
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
-
-function buildMemoryEnv(event: ExternalMemoryEventRecord, replayed: boolean): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  env.OPENCLAW_MEMORY_SOURCE = event.source;
-  env.OPENCLAW_MEMORY_STATUS = event.status;
-  env.OPENCLAW_MEMORY_EVENT_ID = event.event_id;
-  env.OPENCLAW_MEMORY_REPLAY = replayed ? "1" : "0";
-  if (event.session_key) {
-    env.OPENCLAW_MEMORY_SESSION_KEY = event.session_key;
-  }
-  if (event.agent_id) {
-    env.OPENCLAW_MEMORY_AGENT_ID = event.agent_id;
-  }
-  return env;
 }
 
 export function getExternalMemoryJournalPathsForTest(root: string) {
@@ -305,246 +211,87 @@ export function getExternalMemoryJournalPathsForTest(root: string) {
 }
 
 export function resetExternalMemoryKernelForTest(): void {
-  activeRun = null;
-  lastAttemptAt = 0;
+  return;
 }
 
 export function queueExternalMemoryKernelRun(params: QueueExternalMemoryKernelRunParams): boolean {
-  const configuredRoot = getConfiguredMemoryRoot();
+  const resolution = describeExternalMemoryRoot();
+  const configuredRoot = resolution.memoryRoot;
   const journalAvailable = ensureJournalDir(configuredRoot);
-  const persistedEvent = journalAvailable ? persistEvent(configuredRoot, params) : null;
+
+  if (!journalAvailable) {
+    memoryLog.warn(`external memory journal unavailable at ${configuredRoot}`);
+    return false;
+  }
+
+  const persistedEvent = persistEvent(configuredRoot, params);
+  writeTrace(configuredRoot, {
+    timestamp: nowIso(),
+    level: "info",
+    action: "event_persisted",
+    event_id: persistedEvent.event_id,
+    request_id: persistedEvent.request_id,
+    source: persistedEvent.source,
+    session_key: persistedEvent.session_key,
+    agent_id: persistedEvent.agent_id,
+    status: persistedEvent.status,
+    memory_root: configuredRoot,
+    runtime_root: resolution.runtimeRoot,
+    root_source: resolution.source,
+    deprecated_root: resolution.deprecated,
+  });
 
   if (process.env.OPENCLAW_DISABLE_EXTERNAL_MEMORY === "1") {
-    if (journalAvailable && persistedEvent) {
-      updateRecoveryEvent(configuredRoot, persistedEvent.event_id, {
-        processing_state: "skipped",
-        skip_reason: "disabled",
-        replayable: false,
-      });
-      writeTrace(configuredRoot, {
-        timestamp: nowIso(),
-        level: "info",
-        action: "launch_skipped",
-        event_id: persistedEvent.event_id,
-        source: persistedEvent.source,
-        status: persistedEvent.status,
-        reason: "disabled",
-        memory_root: configuredRoot,
-      });
-    }
+    updateRecoveryEvent(configuredRoot, persistedEvent.event_id, {
+      processing_state: "failed",
+      skip_reason: "disabled",
+      replayable: false,
+    });
     return false;
   }
 
   if (!resolveRunnableMemoryRoot(configuredRoot)) {
-    if (journalAvailable && persistedEvent) {
-      updateRecoveryEvent(configuredRoot, persistedEvent.event_id, {
-        processing_state: "skipped",
-        skip_reason: "memory-root-missing",
-        replayable: false,
-      });
-      writeTrace(configuredRoot, {
-        timestamp: nowIso(),
-        level: "warn",
-        action: "root_resolution_failed",
-        event_id: persistedEvent.event_id,
-        source: persistedEvent.source,
-        status: persistedEvent.status,
-        reason: "memory-root-missing",
-        memory_root: configuredRoot,
-      });
-    }
-    return false;
+    updateRecoveryEvent(configuredRoot, persistedEvent.event_id, {
+      processing_state: "failed",
+      skip_reason: "memory-root-missing",
+      failure_reason: "memory-root-missing",
+      replayable: true,
+    });
+    writeTrace(configuredRoot, {
+      timestamp: nowIso(),
+      level: "warn",
+      action: "root_resolution_failed",
+      event_id: persistedEvent.event_id,
+      request_id: persistedEvent.request_id,
+      source: persistedEvent.source,
+      status: persistedEvent.status,
+      reason: "memory-root-missing",
+      memory_root: configuredRoot,
+      runtime_root: resolution.runtimeRoot,
+      root_source: resolution.source,
+      deprecated_root: resolution.deprecated,
+    });
+    return true;
   }
 
-  const now = Date.now();
-  if (activeRun) {
-    if (journalAvailable && persistedEvent) {
-      updateRecoveryEvent(configuredRoot, persistedEvent.event_id, {
-        processing_state: "skipped",
-        skip_reason: "active-run",
-        replayable: true,
-      });
-      writeTrace(configuredRoot, {
-        timestamp: nowIso(),
-        level: "info",
-        action: "launch_skipped",
-        event_id: persistedEvent.event_id,
-        source: persistedEvent.source,
-        status: persistedEvent.status,
-        reason: "active-run",
-        memory_root: configuredRoot,
-      });
-    }
-    return false;
-  }
-
-  if (now - lastAttemptAt < MIN_RUN_INTERVAL_MS) {
-    if (journalAvailable && persistedEvent) {
-      updateRecoveryEvent(configuredRoot, persistedEvent.event_id, {
-        processing_state: "skipped",
-        skip_reason: "throttled",
-        replayable: true,
-      });
-      writeTrace(configuredRoot, {
-        timestamp: nowIso(),
-        level: "info",
-        action: "launch_skipped",
-        event_id: persistedEvent.event_id,
-        source: persistedEvent.source,
-        status: persistedEvent.status,
-        reason: "throttled",
-        memory_root: configuredRoot,
-      });
-    }
-    return false;
-  }
-
-  const selected = findReplayableEvent(configuredRoot);
-  if (!selected) {
-    return false;
-  }
-  const replayed = persistedEvent ? selected.event_id !== persistedEvent.event_id : true;
-  const processingEvent = updateRecoveryEvent(configuredRoot, selected.event_id, {
-    processing_state: "processing",
-    skip_reason: undefined,
-    failure_reason: undefined,
-    attempt_count: selected.attempt_count + 1,
-  });
-  if (!processingEvent) {
-    return false;
-  }
-
-  lastAttemptAt = now;
   writeTrace(configuredRoot, {
     timestamp: nowIso(),
     level: "info",
-    action: "launch_started",
-    event_id: processingEvent.event_id,
-    replayed,
-    source: processingEvent.source,
-    session_key: processingEvent.session_key,
-    agent_id: processingEvent.agent_id,
-    status: processingEvent.status,
+    action: "event_queued",
+    event_id: persistedEvent.event_id,
+    request_id: persistedEvent.request_id,
+    source: persistedEvent.source,
+    session_key: persistedEvent.session_key,
+    agent_id: persistedEvent.agent_id,
+    status: persistedEvent.status,
     memory_root: configuredRoot,
-    attempt_count: processingEvent.attempt_count,
+    runtime_root: resolution.runtimeRoot,
+    root_source: resolution.source,
+    deprecated_root: resolution.deprecated,
   });
-
-  activeRun = new Promise<void>((resolve) => {
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    const child = spawn(
-      process.env.OPENCLAW_EXTERNAL_MEMORY_PYTHON?.trim() || DEFAULT_PYTHON,
-      ["main.py"],
-      {
-        cwd: configuredRoot,
-        env: buildMemoryEnv(processingEvent, replayed),
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    child.stdout?.on("data", (chunk) => {
-      stdoutBuffer = `${stdoutBuffer}${String(chunk)}`.slice(-4000);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderrBuffer = `${stderrBuffer}${String(chunk)}`.slice(-4000);
-    });
-
-    child.once("error", (err) => {
-      const next = updateRecoveryEvent(configuredRoot, processingEvent.event_id, {
-        processing_state: "failed",
-        failure_reason: String(err),
-        replayable: true,
-      });
-      if (next) {
-        appendCommitRecord(configuredRoot, next, "failed");
-      }
-      writeTrace(configuredRoot, {
-        timestamp: nowIso(),
-        level: "warn",
-        action: "launch_error",
-        event_id: processingEvent.event_id,
-        replayed,
-        source: processingEvent.source,
-        session_key: processingEvent.session_key,
-        agent_id: processingEvent.agent_id,
-        status: processingEvent.status,
-        reason: String(err),
-        memory_root: configuredRoot,
-        attempt_count: processingEvent.attempt_count,
-        stdout_excerpt: stdoutBuffer || undefined,
-        stderr_excerpt: stderrBuffer || undefined,
-      });
-      memoryLog.warn(`external memory kernel launch failed: ${String(err)}`);
-      resolve();
-    });
-
-    child.once("exit", (code) => {
-      const acked = code === 0 && hasAckRecord(configuredRoot, processingEvent.event_id);
-      if (acked) {
-        const next = updateRecoveryEvent(configuredRoot, processingEvent.event_id, {
-          processing_state: "committed",
-          replayable: false,
-          failure_reason: undefined,
-        });
-        if (next) {
-          appendCommitRecord(configuredRoot, next, "committed");
-          writeTrace(configuredRoot, {
-            timestamp: nowIso(),
-            level: "info",
-            action: "commit_written",
-            event_id: next.event_id,
-            replayed,
-            source: next.source,
-            session_key: next.session_key,
-            agent_id: next.agent_id,
-            status: next.status,
-            memory_root: configuredRoot,
-            attempt_count: next.attempt_count,
-          });
-        }
-      } else {
-        const reason = code === 0 ? "ack-missing" : `exit:${String(code)}`;
-        const next = updateRecoveryEvent(configuredRoot, processingEvent.event_id, {
-          processing_state: "failed",
-          failure_reason: reason,
-          replayable: true,
-        });
-        if (next) {
-          appendCommitRecord(configuredRoot, next, "failed");
-        }
-      }
-      writeTrace(configuredRoot, {
-        timestamp: nowIso(),
-        level: code === 0 ? "info" : "warn",
-        action: "launch_exit",
-        event_id: processingEvent.event_id,
-        replayed,
-        source: processingEvent.source,
-        session_key: processingEvent.session_key,
-        agent_id: processingEvent.agent_id,
-        status: processingEvent.status,
-        exit_code: code,
-        reason: acked ? undefined : code === 0 ? "ack-missing" : `exit:${String(code)}`,
-        memory_root: configuredRoot,
-        attempt_count: processingEvent.attempt_count,
-        stdout_excerpt: stdoutBuffer || undefined,
-        stderr_excerpt: stderrBuffer || undefined,
-      });
-      if (!acked) {
-        memoryLog.warn(
-          code === 0
-            ? `external memory kernel exited without ack for event ${processingEvent.event_id}`
-            : `external memory kernel exited with code ${String(code)}`,
-        );
-      }
-      resolve();
-    });
-  }).finally(() => {
-    activeRun = null;
-  });
-
   return true;
 }
 
 export async function waitForExternalMemoryKernelIdleForTest(): Promise<void> {
-  await activeRun;
+  return;
 }

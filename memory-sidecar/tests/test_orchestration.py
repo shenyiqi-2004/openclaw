@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from core.backends.base import BackendStatus
+from core.signals import SignalSchema
 from core.orchestration import (
     build_recall_plan,
     build_runtime_signals,
@@ -65,15 +66,24 @@ class OrchestrationTests(unittest.TestCase):
         self.assertEqual(plan["reason"], "recent-low-yield-recall")
 
     def test_strong_signals_expand_recall_limit(self) -> None:
-        signals = {
-            "repeated_steps": True,
-            "contradiction": True,
-            "consecutive_failures": True,
-            "rapid_health_drop": False,
-            "interruption_recovery": False,
-            "low_yield_recall": False,
-            "has_recent_memory": False,
-        }
+        signals = SignalSchema(
+            query_present=True,
+            repeated_steps=True,
+            contradiction=True,
+            consecutive_failures=True,
+            rapid_health_drop=False,
+            interruption_recovery=False,
+            low_health=False,
+            high_pressure=False,
+            high_noise=False,
+            abnormal_growth=False,
+            low_yield_recall=False,
+            has_recent_memory=False,
+            canonical_backend=True,
+            backend_name="memory_lancedb_pro",
+            backend_stats={},
+            health=type("Health", (), {"health": 0.9, "delta": 0.0, "pressure": 0.0, "noise": 0.0, "complexity": 0.1})(),
+        )
         plan = build_recall_plan(
             query_text="resolve conflicting memory state",
             working={"step_count": 9},
