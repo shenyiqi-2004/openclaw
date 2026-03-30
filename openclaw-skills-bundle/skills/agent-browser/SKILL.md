@@ -327,6 +327,29 @@ agent-browser --cdp 9222 snapshot                    # Connect via CDP
 - Skill issues: Open an issue at https://github.com/TheSethRose/Agent-Browser-CLI
 - agent-browser CLI issues: Open an issue at https://github.com/vercel-labs/agent-browser
 
+
+## Escalate to on-demand browser skills
+
+Stay on `agent-browser` by default.
+
+Escalate only when one of these conditions is true:
+
+### Use `browser-use`
+- The task explicitly asks for Browser Use.
+- The task needs a cloud browser session, hosted profile, or persisted cloud login context.
+- The task needs Browser Use's autonomous cloud workflow rather than the normal local browser path.
+
+### Use `stealth-browser` (`kesslerio-stealth-browser`)
+- Standard browser automation gets blocked.
+- The site shows Cloudflare, Datadome, or aggressive anti-bot checks.
+- The task explicitly needs stealth, fingerprint evasion, or protected-site scraping.
+
+### Keep using `agent-browser`
+- Ordinary browsing, page reading, form filling, snapshots, and routine web UI interaction.
+- Logged-in local browser work that does not require a separate cloud or stealth path.
+
+When escalating, mention the reason briefly instead of silently switching stacks.
+
 ## OpenClaw layering note
 
 Use this as the primary browser skill. More specialized browser skills are preserved under `~/.openclaw/skills-on-demand/browser/` and should only be restored or consulted when a task explicitly needs a provider-specific or stealth-oriented browser path.
