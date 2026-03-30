@@ -1,138 +1,59 @@
 ---
 name: skill-vetter
 version: 1.0.0
-description: Security-first skill vetting for AI agents. Use before installing any skill from ClawdHub, GitHub, or other sources. Checks for red flags, permission scope, and suspicious patterns.
+description: Security-first skill vetting for AI agents. Use before installing any skill from GitHub, ClawdHub, or other third-party sources to check for red flags, excessive permissions, and suspicious behavior.
 ---
 
-# Skill Vetter 🔒
+# Skill Vetter
 
-Security-first vetting protocol for AI agent skills. **Never install a skill without vetting it first.**
+Use this skill before installing or trusting any external skill.
 
-## When to Use
+## Vetting checklist
 
-- Before installing any skill from ClawdHub
-- Before running skills from GitHub repos
-- When evaluating skills shared by other agents
-- Anytime you're asked to install unknown code
+### 1. Source
 
-## Vetting Protocol
+Check:
+- repository owner
+- stars or adoption signal
+- last update time
+- stated purpose
 
-### Step 1: Source Check
+### 2. Code review
 
-```
-Questions to answer:
-- [ ] Where did this skill come from?
-- [ ] Is the author known/reputable?
-- [ ] How many downloads/stars does it have?
-- [ ] When was it last updated?
-- [ ] Are there reviews from other agents?
-```
+Reject immediately if you see:
+- credential harvesting
+- unexplained network calls
+- shell download-and-execute patterns
+- access to sensitive user files without clear reason
+- obfuscated or encoded payloads
+- privilege escalation requests
 
-### Step 2: Code Review (MANDATORY)
+### 3. Permission scope
 
-Read ALL files in the skill. Check for these **RED FLAGS**:
+Confirm:
+- what files it reads
+- what files it writes
+- what commands it runs
+- whether network access is required
+- whether the scope matches the claimed purpose
 
-```
-🚨 REJECT IMMEDIATELY IF YOU SEE:
-─────────────────────────────────────────
-• curl/wget to unknown URLs
-• Sends data to external servers
-• Requests credentials/tokens/API keys
-• Reads ~/.ssh, ~/.aws, ~/.config without clear reason
-• Accesses MEMORY.md, USER.md, SOUL.md, IDENTITY.md
-• Uses base64 decode on anything
-• Uses eval() or exec() with external input
-• Modifies system files outside workspace
-• Installs packages without listing them
-• Network calls to IPs instead of domains
-• Obfuscated code (compressed, encoded, minified)
-• Requests elevated/sudo permissions
-• Accesses browser cookies/sessions
-• Touches credential files
-─────────────────────────────────────────
-```
+### 4. Risk judgment
 
-### Step 3: Permission Scope
+- Low: notes, formatting, simple local workflows
+- Medium: file edits, browser control, API integrations
+- High: credentials, system configuration, trading, security controls
+- Extreme: root access or hidden exfiltration
 
-```
-Evaluate:
-- [ ] What files does it need to read?
-- [ ] What files does it need to write?
-- [ ] What commands does it run?
-- [ ] Does it need network access? To where?
-- [ ] Is the scope minimal for its stated purpose?
-```
+## Output format
 
-### Step 4: Risk Classification
+Produce:
+- source
+- reviewed files
+- red flags
+- required permissions
+- risk level
+- final verdict
 
-| Risk Level | Examples | Action |
-|------------|----------|--------|
-| 🟢 LOW | Notes, weather, formatting | Basic review, install OK |
-| 🟡 MEDIUM | File ops, browser, APIs | Full code review required |
-| 🔴 HIGH | Credentials, trading, system | Human approval required |
-| ⛔ EXTREME | Security configs, root access | Do NOT install |
+## Rule
 
-## Output Format
-
-After vetting, produce this report:
-
-```
-SKILL VETTING REPORT
-═══════════════════════════════════════
-Skill: [name]
-Source: [ClawdHub / GitHub / other]
-Author: [username]
-Version: [version]
-───────────────────────────────────────
-METRICS:
-• Downloads/Stars: [count]
-• Last Updated: [date]
-• Files Reviewed: [count]
-───────────────────────────────────────
-RED FLAGS: [None / List them]
-
-PERMISSIONS NEEDED:
-• Files: [list or "None"]
-• Network: [list or "None"]  
-• Commands: [list or "None"]
-───────────────────────────────────────
-RISK LEVEL: [🟢 LOW / 🟡 MEDIUM / 🔴 HIGH / ⛔ EXTREME]
-
-VERDICT: [✅ SAFE TO INSTALL / ⚠️ INSTALL WITH CAUTION / ❌ DO NOT INSTALL]
-
-NOTES: [Any observations]
-═══════════════════════════════════════
-```
-
-## Quick Vet Commands
-
-For GitHub-hosted skills:
-```bash
-# Check repo stats
-curl -s "https://api.github.com/repos/OWNER/REPO" | jq '{stars: .stargazers_count, forks: .forks_count, updated: .updated_at}'
-
-# List skill files
-curl -s "https://api.github.com/repos/OWNER/REPO/contents/skills/SKILL_NAME" | jq '.[].name'
-
-# Fetch and review SKILL.md
-curl -s "https://raw.githubusercontent.com/OWNER/REPO/main/skills/SKILL_NAME/SKILL.md"
-```
-
-## Trust Hierarchy
-
-1. **Official OpenClaw skills** → Lower scrutiny (still review)
-2. **High-star repos (1000+)** → Moderate scrutiny
-3. **Known authors** → Moderate scrutiny
-4. **New/unknown sources** → Maximum scrutiny
-5. **Skills requesting credentials** → Human approval always
-
-## Remember
-
-- No skill is worth compromising security
-- When in doubt, don't install
-- Ask your human for high-risk decisions
-- Document what you vet for future reference
-
----
-
-*Paranoia is a feature.* 🔒🦀
+When in doubt, do not install.

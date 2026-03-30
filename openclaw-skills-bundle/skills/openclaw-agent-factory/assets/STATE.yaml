@@ -1,0 +1,25 @@
+project: example-project
+updated: 2026-03-19T00:00:00Z
+
+tasks:
+  - id: define-scope
+    status: in_progress
+    owner: lead
+    notes: Confirming the smallest viable system shape.
+
+  - id: implement-core
+    status: pending
+    owner: dev
+    notes: Start after scope is confirmed.
+
+  - id: collect-inputs
+    status: pending
+    owner: research
+    notes: Gather the minimum facts needed for execution.
+
+blockers: []
+
+next_actions:
+  - "lead: finalize scope and assign the first executable task"
+  - "dev: begin implementation after scope is approved"
+  - "research: collect missing inputs only if they block execution"

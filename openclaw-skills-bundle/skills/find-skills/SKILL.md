@@ -132,33 +132,6 @@ If this is something you do often, you could create your own skill:
 npx skills init my-xyz-skill
 ```
 
-
-## Escalate to on-demand skill helpers
-
-Stay on `find-skills` by default.
-
-Escalate only when one of these conditions is true:
-
-### Use `skill-vetter`
-- A third-party skill is about to be installed.
-- The source is GitHub, ClawdHub, or another external repo and needs a security review.
-- The user asks whether a skill is safe, suspicious, or over-permissioned.
-
-### Use `skill-creator`
-- The user wants to create a new skill.
-- The user wants to scaffold or update a skill folder, frontmatter, assets, scripts, or references.
-
-### Use `skill-manager`
-- The task is about listing, updating, deleting, or checking installed skills as an inventory or maintenance action.
-
-### Use `skill-audit`
-- The task is to audit a skill collection for quality, consistency, or packaging problems rather than to discover new skills.
-
-### Keep using `find-skills`
-- The task is mainly to discover what skill exists, which skill fits best, or how to install a capability.
-
-When escalating, say which specialized helper you are switching to and why.
-
 ## OpenClaw layering note
 
 Use this as the primary skill-discovery entry point. More specialized skill-maintenance helpers are preserved under `~/.openclaw/skills-on-demand/skill-ecosystem/` and should only be restored or consulted when the task explicitly requires auditing, creating, managing, or vetting skills.
