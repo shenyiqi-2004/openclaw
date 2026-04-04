@@ -12,6 +12,8 @@ Root: `openclaw`
   Ignore rules for generated noise.
 - `memory-sidecar/`
   OpenClaw Memory Sidecar release package.
+- `evolution-protocol/`
+  Evolution Protocol: memory + reflection + pattern system for OpenClaw.
 - `gui-desktop-control/`
   OpenClaw GUI desktop control release package.
 
