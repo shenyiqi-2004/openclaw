@@ -1,0 +1,37 @@
+{
+  "id": "openclaw-security",
+  "name": "OpenClaw Security",
+  "description": "Exec security validation and permission model for OpenClaw",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "allowWhitelist": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "blockWhitelist": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "allowNetworkWhitelist": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "maxRiskScore": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 100
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "openclaw-orchestration",
+  "version": "0.1.0",
+  "description": "Tool concurrency orchestration + execution hooks for OpenClaw",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "orchestration",
+    "tool-scheduling",
+    "concurrency"
+  ],
+  "files": [
+    "index.ts",
+    "src/**/*.ts",
+    "openclaw.plugin.json"
+  ],
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.48"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

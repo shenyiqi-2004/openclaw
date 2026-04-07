@@ -1,0 +1,17 @@
+{
+  "id": "openclaw-governance",
+  "name": "OpenClaw Governance",
+  "description": "SQLite governance log + decision tracking + session stats",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "dbPath": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "openclaw-security",
+  "version": "0.1.0",
+  "description": "Exec security validation and permission model for OpenClaw",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "security",
+    "exec",
+    "permission"
+  ],
+  "files": [
+    "index.ts",
+    "src/**/*.ts",
+    "openclaw.plugin.json"
+  ],
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

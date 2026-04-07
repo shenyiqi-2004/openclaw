@@ -1,0 +1,19 @@
+{
+  "name": "openclaw-governance",
+  "version": "0.1.0",
+  "description": "SQLite governance log + decision tracking + session stats",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

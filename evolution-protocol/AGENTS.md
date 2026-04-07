@@ -50,6 +50,19 @@ Next: [下一步 | 任务完成 | 需要收束]
 - 收束格式：`现状 → 阻塞点 → 建议下一步`
 - 缺环境/权限/依赖/仓库上下文 → 直接收束，不猜
 
+### 上下文压缩策略（来自 Hermes context_compressor）
+- 压缩时保护 head（system prompt + 首轮交互）和 tail（最近 ~20k token）
+- 中间轮次用结构化摘要模板：Goal / Progress / Decisions / Files / Next Steps
+- 压缩后的摘要前缀明确标注已完成的工作，避免重复劳动
+- 先做 tool output 裁剪（廉价 pre-pass），再做 LLM 摘要
+- 迭代压缩时更新已有摘要，不重新生成
+
+### Strategic Compact 协议（来自 ECC）
+- **探索→执行 转换时**主动压缩（research context 笨重，plan 是蒸馏产出）
+- **调试完成后**主动压缩（debug trace 污染后续无关工作）
+- **实现中途禁止压缩**（丢失变量名、文件路径、partial state 代价高）
+- **死路放弃后**主动压缩（清除失败推理再尝试新方案）
+
 ### 反思产出归档
 - 新教训 → `memory/feedback/` + 更新 PATTERNS.md（如果是可复用模式）
 - 项目状态变化 → `memory/project/`
@@ -180,3 +193,36 @@ Plan → Execute → Check → Fix → Next
 - 需要向用户展示结果 → 保留，但给个易读的名字
 - 删除步骤：从 sessions.json 移除 key → 删除对应 .jsonl 文件 → 检查关联 cron job 是否需要清理
 - 清理后验证：`python3 -c "import json; s=json.load(open('sessions.json')); print([k for k in s])"`
+
+### Subagent 安全隔离（来自 Hermes delegate_tool）
+- 子 agent **禁止工具**：delegate_task（无递归委派）、memory 写入（不污染共享记忆）、跨平台消息发送
+- **最大递归深度**：2���parent→child→grandchild rejected）
+- **最大并发子 agent**：3
+- 子 agent 获得独立上下文（不继承 parent 历史），只看到委派目标 + context brief
+- 子 agent 完成后只返回 summary，parent 不看中间 tool calls
+
+## Verification Gate（来自 ECC verification-loop）
+
+### Coding 任务完成后强制验证
+每轮 coding 任务结束、调用 `evolution_reflect` 之前，执行验证链：
+
+```
+Build → Type Check → Lint → Test → Security Scan → Diff Review
+```
+
+输出格式：
+```
+VERIFICATION REPORT
+==================
+Build:     [PASS/FAIL]
+Types:     [PASS/FAIL] (X errors)
+Lint:      [PASS/FAIL] (X warnings)
+Tests:     [PASS/FAIL] (X/Y passed, Z% coverage)
+Security:  [PASS/FAIL] (X issues)
+Diff:      [X files changed]
+Overall:   [READY/NOT READY]
+```
+
+- 任何 Phase FAIL → 修复后重跑，不跳过
+- 简单任务（纯配置/文档改动）可跳过 Type Check + Test
+- 详细流程参见 `verification-loop` skill

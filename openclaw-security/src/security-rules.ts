@@ -1,0 +1,713 @@
+/**
+ * security-rules.ts
+ * Centralized definitions for all security check patterns.
+ */
+
+/** A single security rule with a risk level. */
+export interface SecurityRule {
+  id: string;
+  layer: number;
+  description: string;
+  pattern: RegExp;
+  riskWeight: number;
+  blocked: boolean;
+}
+
+/** All 15 security check layers. */
+export const SECURITY_RULES: SecurityRule[] = [
+  // ─── Layer 1: Command Injection ────────────────────────────────────────
+  {
+    id: "command-injection",
+    layer: 1,
+    description: "Command injection characters detected",
+    pattern: /[;|`$()]/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "command-injection-backtick",
+    layer: 1,
+    description: "Backtick command substitution detected",
+    pattern: /`[^`]+`/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "command-injection-subshell",
+    layer: 1,
+    description: "Subshell substitution $(...) detected",
+    pattern: /\$\([^)]+\)/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "command-injection-variable",
+    layer: 1,
+    description: "Variable injection via $VAR or ${VAR} detected",
+    pattern: /\$\{?[\w]+\}?/,
+    riskWeight: 20,
+    blocked: false,
+  },
+  {
+    id: "command-injection-pipe",
+    layer: 1,
+    description: "Pipe operator used to chain commands",
+    pattern: /\|/,
+    riskWeight: 15,
+    blocked: false,
+  },
+  {
+    id: "command-injection-logical",
+    layer: 1,
+    description: "Logical operators && or || detected",
+    pattern: /&&|\|\|/,
+    riskWeight: 20,
+    blocked: false,
+  },
+
+  // ─── Layer 2: Path Traversal ────────────────────────────────────────────
+  {
+    id: "path-traversal-relative",
+    layer: 2,
+    description: "Path traversal ../ detected",
+    pattern: /\.\.\//,
+    riskWeight: 30,
+    blocked: false,
+  },
+  {
+    id: "path-traversal-absolute-etc",
+    layer: 2,
+    description: "Access to /etc/ system directory",
+    pattern: /^\/etc\//,
+    riskWeight: 35,
+    blocked: false,
+  },
+  {
+    id: "path-traversal-root-home",
+    layer: 2,
+    description: "Access to /root/ directory",
+    pattern: /^\/root\//,
+    riskWeight: 45,
+    blocked: false,
+  },
+  {
+    id: "path-traversal-ssh",
+    layer: 2,
+    description: "Access to ~/.ssh/ directory",
+    pattern: /\/\.ssh\//,
+    riskWeight: 50,
+    blocked: false,
+  },
+  {
+    id: "path-traversal-passwd",
+    layer: 2,
+    description: "Direct access to /etc/passwd",
+    pattern: /\/etc\/passwd/,
+    riskWeight: 30,
+    blocked: false,
+  },
+  {
+    id: "path-traversal-shadow",
+    layer: 2,
+    description: "Access to /etc/shadow (password hashes)",
+    pattern: /\/etc\/shadow/,
+    riskWeight: 80,
+    blocked: true,
+  },
+
+  // ─── Layer 3: Dangerous Commands ─────────────────────────────────────────
+  {
+    id: "dangerous-rm-rf-root",
+    layer: 3,
+    description: "rm -rf / detected (full system wipe)",
+    pattern: /rm\s+(-rf\s+|-f\s+)?\/\s*$/,
+    riskWeight: 100,
+    blocked: true,
+  },
+  {
+    id: "dangerous-rm-rf-general",
+    layer: 3,
+    description: "Recursive force remove detected",
+    pattern: /rm\s+-rf\s+/,
+    riskWeight: 70,
+    blocked: true,
+  },
+  {
+    id: "dangerous-chmod-777",
+    layer: 3,
+    description: "chmod 777 detected (world writable)",
+    pattern: /chmod\s+777/,
+    riskWeight: 55,
+    blocked: false,
+  },
+  {
+    id: "dangerous-dd-if",
+    layer: 3,
+    description: "dd with if= detected (raw disk read)",
+    pattern: /dd\s+if=/,
+    riskWeight: 75,
+    blocked: true,
+  },
+  {
+    id: "dangerous-mkfs",
+    layer: 3,
+    description: "mkfs detected (filesystem destruction)",
+    pattern: /mkfs/,
+    riskWeight: 90,
+    blocked: true,
+  },
+  {
+    id: "dangerous-fdisk",
+    layer: 3,
+    description: "fdisk detected (disk partitioning)",
+    pattern: /fdisk/,
+    riskWeight: 80,
+    blocked: true,
+  },
+  {
+    id: "dangerous-format",
+    layer: 3,
+    description: "format command detected",
+    pattern: /\bformat\s+/,
+    riskWeight: 85,
+    blocked: true,
+  },
+  {
+    id: "dangerous-shred",
+    layer: 3,
+    description: "shred detected (data destruction)",
+    pattern: /\bshred\b/,
+    riskWeight: 65,
+    blocked: false,
+  },
+  {
+    id: "dangerous-truncate",
+    layer: 3,
+    description: "truncate detected (file truncation)",
+    pattern: /\btruncate\b/,
+    riskWeight: 40,
+    blocked: false,
+  },
+
+  // ─── Layer 4: Privilege Escalation ──────────────────────────────────────
+  {
+    id: "priv-elevation-sudo",
+    layer: 4,
+    description: "sudo command detected",
+    pattern: /\bsudo\s+/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "priv-elevation-su",
+    layer: 4,
+    description: "su command detected (user switch)",
+    pattern: /\bsu\s+/,
+    riskWeight: 50,
+    blocked: false,
+  },
+  {
+    id: "priv-elevation-setuid",
+    layer: 4,
+    description: "setuid bit manipulation detected",
+    pattern: /chmod\s+[47]777/,
+    riskWeight: 60,
+    blocked: false,
+  },
+  {
+    id: "priv-elevation-chown-root",
+    layer: 4,
+    description: "Ownership change to root detected",
+    pattern: /chown\s+root[:.]/,
+    riskWeight: 55,
+    blocked: false,
+  },
+  {
+    id: "priv-elevation-caps",
+    layer: 4,
+    description: "setcap detected (Linux capabilities)",
+    pattern: /setcap\s+/,
+    riskWeight: 65,
+    blocked: false,
+  },
+
+  // ─── Layer 5: Network Reconnaissance ────────────────────────────────────
+  {
+    id: "net-scan-nmap",
+    layer: 5,
+    description: "nmap port scanner detected",
+    pattern: /\bnmap\b/,
+    riskWeight: 55,
+    blocked: false,
+  },
+  {
+    id: "net-scan-masscan",
+    layer: 5,
+    description: "masscan network scanner detected",
+    pattern: /\bmasscan\b/,
+    riskWeight: 60,
+    blocked: false,
+  },
+  {
+    id: "net-listen-nc",
+    layer: 5,
+    description: "netcat listen mode detected (-l flag)",
+    pattern: /nc\s+.*-[Ll]\s+/,
+    riskWeight: 45,
+    blocked: false,
+  },
+  {
+    id: "net-scan-hping",
+    layer: 5,
+    description: "hping detected (network scanner)",
+    pattern: /\bhping[34]?\b/,
+    riskWeight: 55,
+    blocked: false,
+  },
+  {
+    id: "net-scan-netdiscover",
+    layer: 5,
+    description: "netdiscover detected (ARP scanner)",
+    pattern: /\bnetdiscover\b/,
+    riskWeight: 50,
+    blocked: false,
+  },
+
+  // ─── Layer 6: Fork Bombs ────────────────────────────────────────────────
+  {
+    id: "forkbomb-classic",
+    layer: 6,
+    description: "Classic fork bomb :(){ :|:& };: detected",
+    pattern: /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;:/,
+    riskWeight: 100,
+    blocked: true,
+  },
+  {
+    id: "forkbomb-bash-loop",
+    layer: 6,
+    description: "Fork bomb via bash loop detected",
+    pattern: /:\s*\|\s*:/,
+    riskWeight: 80,
+    blocked: true,
+  },
+  {
+    id: "forkbomb-infinite-recursion",
+    layer: 6,
+    description: "Infinite recursion / fork loop detected",
+    pattern: /:\s*\|\s*&\s*;|while\s+\[\s+1\s+\]\s*:\s*\}/,
+    riskWeight: 70,
+    blocked: false,
+  },
+
+  // ─── Layer 7: Environment Variable Injection ───────────────────────────
+  {
+    id: "env-injection-ldpreload",
+    layer: 7,
+    description: "LD_PRELOAD injection detected",
+    pattern: /LD_PRELOAD=/,
+    riskWeight: 65,
+    blocked: true,
+  },
+  {
+    id: "env-injection-ldlibpath",
+    layer: 7,
+    description: "LD_LIBRARY_PATH manipulation detected",
+    pattern: /LD_LIBRARY_PATH=/,
+    riskWeight: 50,
+    blocked: false,
+  },
+  {
+    id: "env-injection-path",
+    layer: 7,
+    description: "PATH environment variable override detected",
+    pattern: /PATH=/,
+    riskWeight: 35,
+    blocked: false,
+  },
+  {
+    id: "env-injection-ifs",
+    layer: 7,
+    description: "IFS environment variable manipulation detected",
+    pattern: /IFS=/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "env-injection-pythonpath",
+    layer: 7,
+    description: "PYTHONPATH manipulation detected",
+    pattern: /PYTHONPATH=/,
+    riskWeight: 30,
+    blocked: false,
+  },
+  {
+    id: "env-injection-node-options",
+    layer: 7,
+    description: "NODE_OPTIONS injection (--eval flag)",
+    pattern: /NODE_OPTIONS=.*--eval/,
+    riskWeight: 60,
+    blocked: true,
+  },
+
+  // ─── Layer 8: Encoding/Decoding Bypass ──────────────────────────────────
+  {
+    id: "encoding-base64-decode-run",
+    layer: 8,
+    description: "base64 decode and pipe to shell detected",
+    pattern: /base64\s+(-d\s+|--decode).*(\|\s*(sh|bash|ksh|zsh|fish))/,
+    riskWeight: 60,
+    blocked: true,
+  },
+  {
+    id: "encoding-echo-pipe-bash",
+    layer: 8,
+    description: "echo piped to shell interpreter detected",
+    pattern: /echo\s+['"]?[^'"]*['"]?\s*\|\s*(sh|bash|ksh|zsh|fish)/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "encoding-hex-run",
+    layer: 8,
+    description: "Hex-encoded command execution detected",
+    pattern: /\bxxd\s+-r\s*-p.*\|/,
+    riskWeight: 55,
+    blocked: true,
+  },
+  {
+    id: "encoding-url-decode-run",
+    layer: 8,
+    description: "URL decode and execute detected",
+    pattern: /python3?\s+.*urllib.*\|.*sh/,
+    riskWeight: 50,
+    blocked: true,
+  },
+  {
+    id: "encoding-curl-bash",
+    layer: 8,
+    description: "curl | bash (remote code execution via pipe)",
+    pattern: /curl\s+.*\|\s*(sh|bash|bash\s+-s)/,
+    riskWeight: 75,
+    blocked: true,
+  },
+  {
+    id: "encoding-wget-bash",
+    layer: 8,
+    description: "wget | bash (remote code execution via pipe)",
+    pattern: /wget\s+.*\|\s*(sh|bash|bash\s+-s)/,
+    riskWeight: 75,
+    blocked: true,
+  },
+
+  // ─── Layer 9: Sensitive File Access ─────────────────────────────────────
+  {
+    id: "sensitive-shadow",
+    layer: 9,
+    description: "Reading /etc/shadow (password hashes)",
+    pattern: /(?<![a-z])\/etc\/shadow(?![a-z])/,
+    riskWeight: 90,
+    blocked: true,
+  },
+  {
+    id: "sensitive-masterpasswd",
+    layer: 9,
+    description: "Reading /etc/master.passwd (BSD password file)",
+    pattern: /\/etc\/master\.passwd/,
+    riskWeight: 90,
+    blocked: true,
+  },
+  {
+    id: "sensitive-ssh-key",
+    layer: 9,
+    description: "Accessing SSH private key files",
+    pattern: /\/\.ssh\/[a-z_]+(\.pem)?$/,
+    riskWeight: 85,
+    blocked: true,
+  },
+  {
+    id: "sensitive-aws-credentials",
+    layer: 9,
+    description: "Accessing AWS credential files",
+    pattern: /\/\.aws\/(credentials|config)/,
+    riskWeight: 80,
+    blocked: true,
+  },
+  {
+    id: "sensitive-env-file",
+    layer: 9,
+    description: "Reading .env files with secrets",
+    pattern: /\/\.env(\s|$)/,
+    riskWeight: 70,
+    blocked: false,
+  },
+  {
+    id: "sensitive-git-credentials",
+    layer: 9,
+    description: "Accessing .git-credentials or git credential store",
+    pattern: /\.git-credentials|\.git\/credentials/,
+    riskWeight: 65,
+    blocked: true,
+  },
+  {
+    id: "sensitive-docker-auth",
+    layer: 9,
+    description: "Accessing Docker authentication config",
+    pattern: /\/\.docker\/config\.json/,
+    riskWeight: 70,
+    blocked: true,
+  },
+  {
+    id: "sensitive-kube-config",
+    layer: 9,
+    description: "Accessing Kubernetes config",
+    pattern: /\/\.kube\/config/,
+    riskWeight: 75,
+    blocked: true,
+  },
+
+  // ─── Layer 10: Signal Abuse ──────────────────────────────────────────────
+  {
+    id: "signal-kill-all-processes",
+    layer: 10,
+    description: "kill -9 -1 (kill all processes) detected",
+    pattern: /kill\s+-9\s+-1/,
+    riskWeight: 90,
+    blocked: true,
+  },
+  {
+    id: "signal-killall",
+    layer: 10,
+    description: "killall command detected",
+    pattern: /\bkillall\b/,
+    riskWeight: 65,
+    blocked: false,
+  },
+  {
+    id: "signal-pkill",
+    layer: 10,
+    description: "pkill (pattern-based kill) detected",
+    pattern: /\bpkill\b/,
+    riskWeight: 50,
+    blocked: false,
+  },
+  {
+    id: "signal-kill-1",
+    layer: 10,
+    description: "kill PID 1 (init/systemd) detected",
+    pattern: /kill\s+-9\s+1\b/,
+    riskWeight: 95,
+    blocked: true,
+  },
+
+  // ─── Layer 11: Filesystem Destruction ───────────────────────────────────
+  {
+    id: "fsdest-dev-null-overwrite",
+    layer: 11,
+    description: "Overwriting /dev/null or /dev/zero",
+    pattern: />\s*\/dev\/(null|zero|urandom)/,
+    riskWeight: 70,
+    blocked: true,
+  },
+  {
+    id: "fsdest-block-dev-write",
+    layer: 11,
+    description: "Writing directly to block device",
+    pattern: /of=\/dev\/(sd|vd|nvme|mmc)/,
+    riskWeight: 85,
+    blocked: true,
+  },
+  {
+    id: "fsdest-overwrite-boot",
+    layer: 11,
+    description: "Overwriting /boot partition",
+    pattern: /of=\/boot/,
+    riskWeight: 90,
+    blocked: true,
+  },
+
+  // ─── Layer 12: Network Exfiltration ─────────────────────────────────────
+  {
+    id: "net-exfil-curl-post",
+    layer: 12,
+    description: "curl POST request (potential exfiltration)",
+    pattern: /curl\s+.*(-X\s+POST|-d\s+|--data\s+)/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "net-exfil-wget-post",
+    layer: 12,
+    description: "wget POST request (potential exfiltration)",
+    pattern: /wget\s+.*--post-data/,
+    riskWeight: 40,
+    blocked: false,
+  },
+  {
+    id: "net-exfil-nc-transfer",
+    layer: 12,
+    description: "netcat file transfer to remote host",
+    pattern: /nc\s+.*\s+-w\s+\d+\s+[0-9]+\s+</,
+    riskWeight: 50,
+    blocked: false,
+  },
+  {
+    id: "net-exfil-tar-net",
+    layer: 12,
+    description: "tar piped to netcat (network transfer)",
+    pattern: /tar\s+.*\|\s*nc\s+/,
+    riskWeight: 55,
+    blocked: false,
+  },
+
+  // ─── Layer 13: Crontab / Scheduler Injection ────────────────────────────
+  {
+    id: "sched-crontab-e",
+    layer: 13,
+    description: "crontab -e (edit scheduled tasks)",
+    pattern: /crontab\s+-e/,
+    riskWeight: 50,
+    blocked: false,
+  },
+  {
+    id: "sched-at",
+    layer: 13,
+    description: "at command (one-time scheduler)",
+    pattern: /\bat\s+/,
+    riskWeight: 45,
+    blocked: false,
+  },
+  {
+    id: "sched-systemd-timer",
+    layer: 13,
+    description: "systemd timer creation detected",
+    pattern: /systemctl\s+(enable|start)\s+.*timer/i,
+    riskWeight: 55,
+    blocked: false,
+  },
+  {
+    id: "sched-cron-var",
+    layer: 13,
+    description: "Modifying cron environment variables",
+    pattern: /CRON_/,
+    riskWeight: 35,
+    blocked: false,
+  },
+
+  // ─── Layer 14: Container Escape ────────────────────────────────────────
+  {
+    id: "container-nsenter",
+    layer: 14,
+    description: "nsenter (namespace entry) detected",
+    pattern: /\bnsenter\b/,
+    riskWeight: 75,
+    blocked: true,
+  },
+  {
+    id: "container-unshare",
+    layer: 14,
+    description: "unshare (namespace separation) detected",
+    pattern: /\bunshare\b/,
+    riskWeight: 70,
+    blocked: false,
+  },
+  {
+    id: "container-mount",
+    layer: 14,
+    description: "mount command inside container",
+    pattern: /\bmount\s+/,
+    riskWeight: 70,
+    blocked: false,
+  },
+  {
+    id: "container-docker-socket",
+    layer: 14,
+    description: "Accessing Docker socket (/var/run/docker.sock)",
+    pattern: /\/var\/run\/docker\.sock/,
+    riskWeight: 75,
+    blocked: true,
+  },
+  {
+    id: "container-cgroup-escape",
+    layer: 14,
+    description: "Cgroup namespace manipulation detected",
+    pattern: /\/proc\/self\/cgroup/,
+    riskWeight: 40,
+    blocked: false,
+  },
+
+  // ─── Layer 15: History Erasure ──────────────────────────────────────────
+  {
+    id: "history-clear-c",
+    layer: 15,
+    description: "history -c (clear shell history)",
+    pattern: /history\s+-c/,
+    riskWeight: 60,
+    blocked: true,
+  },
+  {
+    id: "history-clear-env",
+    layer: 15,
+    description: "unset HISTFILE (disable history logging)",
+    pattern: /unset\s+HISTFILE/,
+    riskWeight: 50,
+    blocked: true,
+  },
+  {
+    id: "history-clear-histsize",
+    layer: 15,
+    description: "HISTSIZE=0 (disable history)",
+    pattern: /HISTSIZE\s*=\s*0/,
+    riskWeight: 40,
+    blocked: true,
+  },
+  {
+    id: "history-zsh-rc",
+    layer: 15,
+    description: "Modifying .zshrc to suppress history",
+    pattern: /\.zshrc.*HISTFILE/,
+    riskWeight: 45,
+    blocked: true,
+  },
+];
+
+/** Path whitelist patterns (safe to allow directly). */
+export const PATH_WHITELIST: Array<{ pattern: RegExp; description: string }> = [
+  { pattern: /^\/tmp\//, description: "Temporary directory" },
+  { pattern: /^\/var\/tmp\//, description: "Var temporary directory" },
+  { pattern: /^\/home\/[^\/]+\//, description: "User home directory" },
+  { pattern: /^\/usr\//, description: "System binaries" },
+  { pattern: /^\/bin\//, description: "Essential binaries" },
+  { pattern: /^\/sbin\//, description: "System binaries" },
+  { pattern: /^\/opt\//, description: "Optional software" },
+  { pattern: /^\/srv\//, description: "Service data" },
+];
+
+/** Path blacklist patterns (always blocked). */
+export const PATH_BLACKLIST: Array<{ pattern: RegExp; description: string }> = [
+  { pattern: /^\/etc\/shadow/, description: "Password hashes" },
+  { pattern: /^\/etc\/master\.passwd/, description: "BSD password file" },
+  { pattern: /^\/root\//, description: "Root home directory" },
+  { pattern: /\/\.ssh\//, description: "SSH keys directory" },
+  { pattern: /^\/boot\//, description: "Boot partition" },
+  { pattern: /^\/sys\//, description: "Sysfs (kernel interface)" },
+  { pattern: /^\/proc\/sys/, description: "Kernel runtime parameters" },
+  { pattern: /^\/dev\/sd/, description: "Physical block devices" },
+  { pattern: /^\/dev\/vd/, description: "Virtual block devices" },
+  { pattern: /^\/dev\/nvme/, description: "NVMe block devices" },
+];
+
+/** Default allowed network destinations (domains/IPs). */
+export const NETWORK_WHITELIST_DEFAULT: string[] = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+];
+
+/** Operation risk weights for permission_check. */
+export const OPERATION_RISK_WEIGHTS: Record<string, number> = {
+  read: 10,
+  write: 40,
+  delete: 70,
+  execute: 55,
+  network: 65,
+};
