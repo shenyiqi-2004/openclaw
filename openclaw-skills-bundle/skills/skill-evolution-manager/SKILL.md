@@ -97,3 +97,34 @@ pip install pyyaml
 - **记录技巧**: 保存成功的使用模式
 - **避免错误**: 记录失败的尝试和解决方案
 - **知识传承**: 让后续会话也能受益于经验积累
+
+## 置信度打分（来自 Hermes instinct 系统）
+
+每次记录经验时，附加置信度评估：
+
+| 等级 | 分值 | 含义 | 操作 |
+|------|------|------|------|
+| confirmed | 0.9-1.0 | 用户明确确认有效 | 直接写入 SKILL.md |
+| observed | 0.6-0.8 | 多次观察到有效 | 写入 evolution.json，等待确认 |
+| hypothesis | 0.3-0.5 | 单次观察或推测 | 记录但不应用 |
+| disproven | 0.0-0.2 | 已被证伪或替代 | 标记为 deprecated |
+
+### 置信度升级规则
+- hypothesis 被使用 2+ 次且无负反馈 → 升级为 observed
+- observed 被用户明确确认 → 升级为 confirmed
+- 任何等级被用户否定 → 降级为 disproven
+
+## 自动提取触发点（来自 ECC continuous-learning）
+
+在以下时机自动触发经验提取：
+
+1. **任务完成后**（evolution_reflect 调用时）—— 检查是否有新 pattern
+2. **用户纠正时** —— 立即记录为 feedback，置信度 confirmed
+3. **同一方案被使用 3+ 次** —— 升级为 observed，候选写入 SKILL.md
+4. **连续 2 次失败后换方案成功** —— 记录新方案 + 标记旧方案 disproven
+
+### 与现有工具的分工
+- `evolution_reflect` → 触发口（强制检查点）
+- `evolution_pattern_match` → 查询口（coding 前检索）
+- `pattern-extract` skill → 写入 PATTERNS.md
+- `skill-evolution-manager`（本 skill）→ 写入 SKILL.md 内的最佳实践

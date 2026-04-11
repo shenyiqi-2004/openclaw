@@ -43,20 +43,20 @@ cd openclaw-skills/ddg-search
 cd ddg-search
 
 # 运行搜索
-python3 scripts/search.py "your search query"
+bash scripts/search.sh "your search query"
 ```
 
 ### 搜索示例
 
 ```bash
 # 搜索 Python 教程
-python3 scripts/search.py "python tutorial for beginners"
+bash scripts/search.sh "python tutorial for beginners"
 
 # 搜索最新新闻
-python3 scripts/search.py "AI news 2026"
+bash scripts/search.sh "AI news 2026"
 
 # 搜索特定主题
-python3 scripts/search.py "open source alternatives to photoshop"
+bash scripts/search.sh "open source alternatives to photoshop"
 ```
 
 ### 输出格式
@@ -78,7 +78,7 @@ python3 scripts/search.py "open source alternatives to photoshop"
 
 | 脚本 | 功能 |
 |------|------|
-| `search.py` | 执行 DuckDuckGo 搜索 |
+| `search.sh` | 执行 DuckDuckGo 搜索（bash + curl + jq） |
 
 ## 注意事项
 

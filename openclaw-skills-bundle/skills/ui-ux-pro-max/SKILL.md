@@ -1,59 +1,54 @@
----
-name: ui-ux-pro-max
-description: UI/UX设计与无障碍指南
----
+# UI/UX Pro Max — Design Intelligence
 
-# UI/UX设计指南
+Comprehensive design intelligence skill for web/mobile UI decisions, powered by searchable databases of 67+ UI styles, 161 color palettes, 57 font pairings, 99 UX guidelines, and 25 chart types.
 
-## 用户体验原则
+## When to Use
 
-1. **可见性**：系统状态可见
-2. **匹配**：匹配真实世界
-3. **控制**：用户控制与自由
-4. **一致**：一致性与标准化
-5. **防错**：预防错误
-6. **识别**：识别而非记忆
-7. **灵活**：灵活与效率
-8. **帮助**：帮助与文档
+**Invoked automatically** when the task involves:
+- Building landing pages, dashboards, SaaS products, e-commerce, mobile apps
+- Choosing or justifying color palettes, typography, spacing, layout systems
+- Creating or reviewing UI components (buttons, modals, forms, cards, tables, charts)
+- Accessibility audits, WCAG compliance checks
+- Design system creation or extension
+- UI/UX feedback, quality control, or professional polish pass
 
-## 无障碍 (WCAG)
+## Quick Search
 
-### 1. 可感知
-- 文字与背景对比度 ≥ 4.5:1
-- 图片有alt文本
-- 视频有字幕
+```bash
+# Design system generator (start here for new projects)
+python3 skills/ui-ux-pro-max/scripts/search.py "<product type> <industry> <keywords>" --design-system -p "Project Name"
 
-### 2. 可操作
-- 键盘可导航
-- 有焦点指示
-- 有足够点击区域 (44x44px)
+# Domain-specific search
+python3 skills/ui-ux-pro-max/scripts/search.py "<keyword>" --domain <domain> -n 3
 
-### 3. 可理解
-- 语言声明
-- 错误提示明确
-- 输入标签清晰
+# Stack-specific guidelines
+python3 skills/ui-ux-pro-max/scripts/search.py "<keyword>" --stack <stack>
+```
 
-### 4. 健壮
-- 语义化HTML
-- ARIA正确使用
-- 兼容性良好
+**Domains:** `style` | `color` | `typography` | `landing` | `chart` | `ux` | `product` | `icons` | `react` | `web` | `google-fonts`
+**Stacks:** `react` | `nextjs` | `vue` | `svelte` | `astro` | `swiftui` | `react-native` | `flutter` | `shadcn` | `html-tailwind` | `laravel`
 
-## 交互设计
+## Priority Rule Summary
 
-### 反馈
-- 操作反馈：加载/成功/失败
-- 等待时间：<100ms理想，<1s可接受
-- 进度指示：加载条/骨架屏
+| Priority | Category | Impact |
+|----------|----------|--------|
+| 1 | Accessibility | CRITICAL — 4.5:1 contrast, alt text, keyboard nav, ARIA |
+| 2 | Touch & Interaction | CRITICAL — 44×44pt min touch target, loading feedback |
+| 3 | Performance | HIGH — WebP/AVIF, lazy loading, CLS < 0.1 |
+| 4 | Style Selection | HIGH — Match style to product type, SVG icons (no emoji) |
+| 5 | Layout & Responsive | HIGH — Mobile-first, no horizontal scroll, 8dp spacing |
+| 6 | Typography & Color | MEDIUM — 16px base, semantic color tokens |
+| 7 | Animation | MEDIUM — 150-300ms, ease-in-out, prefers-reduced-motion |
+| 8 | Forms & Feedback | MEDIUM — Labels, inline errors, progressive disclosure |
+| 9 | Navigation Patterns | HIGH — ≤5 bottom nav items, predictable back behavior |
+| 10 | Charts & Data | LOW — Legends, tooltips, accessible colors |
 
-### 动效
-- 时长：150-300ms
-- 曲线：ease-in-out
-- 意义：引导注意/状态变化
+## Pre-Delivery Checklist
 
-## 表单设计
-
-- 标签清晰
-- 占位符作提示
-- 错误信息具体
-- 必填项标识 *
-- 支持键盘操作
+- [ ] No emoji as icons — use SVG (Phosphor / Heroicons)
+- [ ] Touch targets ≥44×44pt
+- [ ] Color contrast ≥4.5:1 (AA) in both light and dark mode
+- [ ] Animation duration 150-300ms, respects reduced-motion
+- [ ] Form errors near fields, not just at top
+- [ ] Safe areas respected (notch, Dynamic Island, gesture bar)
+- [ ] Skeleton/shimmer for async content >300ms

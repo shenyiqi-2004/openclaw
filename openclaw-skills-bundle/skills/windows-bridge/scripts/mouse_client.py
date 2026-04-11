@@ -1,8 +1,4 @@
-"""
-mouse_client.py - WSL TCP Mouse Control Client
-
-自动从 /etc/resolv.conf 获取 Windows 主机地址。
-"""
+#!/usr/bin/env python3
 
 import json
 import socket

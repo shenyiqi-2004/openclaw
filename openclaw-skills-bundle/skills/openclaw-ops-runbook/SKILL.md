@@ -9,9 +9,9 @@ Use this skill when the task touches the local OpenClaw install, its home path, 
 
 ## Canonical home
 
-- Treat `/home/park/openclaw` as the canonical OpenClaw home.
-- Treat `/home/park/openclaw/.openclaw` as the active runtime state root.
-- Treat `/home/park/openclaw/memory-sidecar` as the active markdown sidecar root.
+- Treat `/home/park/.openclaw` as the canonical OpenClaw home.
+- Treat `/home/park/.openclaw` as the active runtime state root.
+- memory-lancedb-pro 为唯一活跃记忆后端（markdown sidecar 已弃用）。
 
 ## Active memory architecture
 
@@ -57,9 +57,9 @@ Use this skill when the task touches the local OpenClaw install, its home path, 
 
 ### Runtime config and restart rule
 
-- Treat `/home/park/openclaw/.openclaw/openclaw.json` as the runtime config source of truth.
+- Treat `/home/park/.openclaw/openclaw.json` as the runtime config source of truth.
 - After changing model, plugin, exec, or gateway-related config, restart the gateway before trusting the new state.
-- After upgrading or cutting over to a new OpenClaw build, confirm the gateway service points at the current entrypoint under `/home/park/openclaw/dist/entry.js`, not an older hashed build artifact.
+- After upgrading or cutting over to a new OpenClaw build, confirm the gateway service points at the current entrypoint, not an older hashed build artifact.
 
 ### Memory backend checks
 
@@ -88,7 +88,7 @@ Use this skill when the task touches the local OpenClaw install, its home path, 
 - If an OpenClaw cron job keeps drifting in `isolated` mode, move the critical path into a script and let the scheduler only trigger that script.
 - For the daily WeChat briefing on this machine, the stable path is:
   - system cron
-  - `/home/park/.openclaw/workspace/scripts/daily_briefing_runner.py`
+  - `/home/park/.openclaw/workspace/scripts/daily_briefing_runner.py` (位于工作区 scripts 目录)
   - `openclaw message send --channel openclaw-weixin ...`
 - Do not route the daily briefing through `webchat` delivery.
 - Keep the old broken OpenClaw daily briefing job disabled to avoid duplicate sends.
